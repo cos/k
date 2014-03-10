@@ -424,7 +424,9 @@ class KoreFilter extends BasicVisitor {
             } else {
                 indenter.write("# ");
             }
+            indenter.write("(");
             term.accept(this);
+            indenter.write(")");
         }
         
         @Override
@@ -548,9 +550,11 @@ class KoreFilter extends BasicVisitor {
         
         @Override
         public void visit(Rewrite rewrite) {
+        	indenter.write("(");
             rewrite.getLeft().accept(this);
             indenter.write(" => ");
             rewrite.getRight().accept(this);
+            indenter.write(")");
             indenter.endLine();
         }
         

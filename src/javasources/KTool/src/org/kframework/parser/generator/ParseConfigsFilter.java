@@ -3,6 +3,7 @@ package org.kframework.parser.generator;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Configuration;
 import org.kframework.kil.Module;
+import org.kframework.kil.Rule;
 import org.kframework.kil.Sentence;
 import org.kframework.kil.StringSentence;
 import org.kframework.kil.loader.CollectStartSymbolPgmVisitor;
@@ -25,6 +26,7 @@ import org.kframework.parser.concrete.disambiguate.PreferAvoidFilter;
 import org.kframework.parser.concrete.disambiguate.PriorityFilter;
 import org.kframework.parser.concrete.disambiguate.SentenceVariablesFilter;
 import org.kframework.parser.concrete.disambiguate.VariableTypeInferenceFilter;
+import org.kframework.parser.kore.KoreParser;
 import org.kframework.parser.utils.ReportErrorsVisitor;
 import org.kframework.parser.utils.Sglr;
 import org.kframework.utils.StringUtil;
@@ -62,7 +64,21 @@ public class ParseConfigsFilter extends BasicTransformer {
         if (ss.getType().equals(Constants.CONFIG)) {
             try {
                 ASTNode config = null;
-                if (GlobalSettings.fastKast) {
+                
+                //parse .kore file by using kore parser
+                if(GlobalSettings.parseKore){
+                	
+                	Sentence st =KoreParser.parse(ss.getFilename(), ss.getContent(), this.context);
+                	config = new Configuration(st);
+                    assert st.getLabel().equals(""); // labels should have been parsed in Basic Parsing
+                    st.setLabel(ss.getLabel());
+                    //assert st.getAttributes() == null || st.getAttributes().isEmpty(); // attributes should have been parsed in Basic Parsing
+                    st.setAttributes(ss.getAttributes());
+                    assert st.getLabel().equals(""); // labels should have been parsed in Basic Parsing
+                    st.setLabel(ss.getLabel());
+                    //assert st.getAttributes() == null || st.getAttributes().isEmpty(); // attributes should have been parsed in Basic Parsing
+                    st.setAttributes(ss.getAttributes());
+                } else if (GlobalSettings.fastKast) {
                     // TODO(RaduM): load directly from ATerms
                     config = Sglr.run_sglri(context.dotk.getAbsolutePath() + "/def/Concrete.tbl", "CondSentence", ss.getContent(), ss.getFilename());
                     int startLine = StringUtil.getStartLineFromLocation(ss.getContentLocation());

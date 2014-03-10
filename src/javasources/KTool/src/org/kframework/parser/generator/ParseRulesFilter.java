@@ -41,6 +41,7 @@ import org.kframework.utils.general.GlobalSettings;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import org.kframework.parser.kore.KoreParser;
 
 public class ParseRulesFilter extends BasicTransformer {
     Formatter f;
@@ -80,8 +81,25 @@ public class ParseRulesFilter extends BasicTransformer {
             long startTime = System.currentTimeMillis();
             try {
                 ASTNode config;
-
-                if (GlobalSettings.fastKast) {
+                
+                //parse .kore file by using kore parser
+                if(GlobalSettings.parseKore){
+                	
+                	config=KoreParser.parse(ss.getFilename(), ss.getContent(), this.context);
+                    if (ss.getType().equals(Constants.CONTEXT))
+                        config = new org.kframework.kil.Context((Sentence) config);
+                    else if (ss.getType().equals(Constants.RULE))
+                        config = new Rule((Sentence) config);
+                    else { // should not reach here
+                        config = null;
+                        assert false : "Only context and rules have been implemented.";
+                    }
+                    Sentence st = (Sentence) config;
+                    assert st.getLabel().equals(""); // labels should have been parsed in Basic Parsing
+                    st.setLabel(ss.getLabel());
+                    //assert st.getAttributes() == null || st.getAttributes().isEmpty(); // attributes should have been parsed in Basic Parsing
+                    st.setAttributes(ss.getAttributes());
+                } else if (GlobalSettings.fastKast) {
                     // TODO(RaduM): load directly from ATerms
                     ASTNode anode = Sglr.run_sglri(context.dotk.getAbsolutePath() + "/def/Concrete.tbl", "CondSentence", ss.getContent(), ss.getFilename());
 
@@ -112,7 +130,7 @@ public class ParseRulesFilter extends BasicTransformer {
                         if (GlobalSettings.verbose)
                             System.out.println("Parsing with Kore: " + ss.getFilename() + ":" + ss.getLocation() + " - " + (System.currentTimeMillis() - koreStartTime));
                     } else
-                        parsed = org.kframework.parser.concrete.KParser.ParseKConfigString(ss.getContent());
+                    parsed = org.kframework.parser.concrete.KParser.ParseKConfigString(ss.getContent());
                     Document doc = XmlLoader.getXMLDoc(parsed);
 
                     // replace the old xml node with the newly parsed sentence
