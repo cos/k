@@ -17,6 +17,7 @@ import org.kframework.kil.Bag;
 import org.kframework.kil.Rewrite;
 import org.kframework.kil.Cell;
 import org.kframework.kil.Sentence;
+import org.kframework.kil.Freezer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import org.kframework.kil.loader.Context;
@@ -48,20 +49,73 @@ public class KoreParser implements KoreParserConstants {
     }
   }
 
-  static final public Sentence parseTopLevel(Context context) throws ParseException {
-                                           Term col;Term req;Term ens;
+  final public Sentence parseTopLevel(Context context) throws ParseException {
+                                           Term col;Term req=null;Term ens=null;
     col = parseCollection(context);
-    jj_consume_token(20);
-    req = parseKApp(context);
-    jj_consume_token(21);
-    ens = parseKApp(context);
+    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+    case 21:
+      jj_consume_token(21);
+      req = parseKApp(context);
+      break;
+    default:
+      jj_la1[0] = jj_gen;
+      ;
+    }
+    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+    case 22:
+      jj_consume_token(22);
+      ens = parseKApp(context);
+      break;
+    default:
+      jj_la1[1] = jj_gen;
+      ;
+    }
+    jj_consume_token(0);
  Sentence result = new Sentence(); result.setBody(col);
-        result.setRequires(req);result.setEnsures(ens); {if (true) return result;}
+        if (req!=null)
+                result.setRequires(req);
+        if (ens!=null)
+                result.setEnsures(ens);
+        {if (true) return result;}
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term parseCollection(Context context) throws ParseException {
-                                         ArrayList<Term> temp = new ArrayList<Term>();Term a;
+  final public Term parseCollection(Context context) throws ParseException {
+                                         ArrayList<Term> result = new ArrayList<Term>();Term a;
+    label_1:
+    while (true) {
+      a = parseCellItem(context);
+                             result.add(a);
+      switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+      case NUM:
+      case STRING:
+      case 8:
+      case 9:
+      case 10:
+      case 12:
+      case 15:
+      case 16:
+      case 18:
+      case LCELLPR:
+      case LCURLY:
+      case LSQUARE:
+      case SORT_ID:
+      case SORTKINJECT:
+      case LABELCONSTANT:
+        ;
+        break;
+      default:
+        jj_la1[2] = jj_gen;
+        break label_1;
+      }
+    }
+ {if (true) return new Bag(result);}
+    throw new Error("Missing return statement in function");
+  }
+
+  final public Term parseCellItem(Context context) throws ParseException {
+                                       Term left;Term right;;Token label;Token endLabel;Term cellContents;
+                boolean leftEclipse;boolean rightEclipse;HashMap<String,String> attributes=null;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case NUM:
     case STRING:
@@ -70,58 +124,27 @@ public class KoreParser implements KoreParserConstants {
     case 10:
     case 12:
     case 15:
+    case 16:
+    case 18:
+    case LCURLY:
+    case LSQUARE:
     case SORT_ID:
     case SORTKINJECT:
     case LABELCONSTANT:
-      a = parseKList(context);
- {if (true) return a;}
-      break;
-    case 16:
-    case LCELLPR:
-    case LPR:
-      label_1:
-      while (true) {
-        a = parseCell(context);
-                         temp.add(a);
-        switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-        case 16:
-        case LCELLPR:
-        case LPR:
-          ;
-          break;
-        default:
-          jj_la1[0] = jj_gen;
-          break label_1;
-        }
-      }
- {if (true) return new Bag(temp);}
-      break;
-    default:
-      jj_la1[1] = jj_gen;
-
-    }
-    throw new Error("Missing return statement in function");
-  }
-
-  static final public Term parseCell(Context context) throws ParseException {
-                                   Token label;Token endLabel;Term cellContents;
-                boolean leftEclipse;boolean rightEclipse;Term left;Term right;HashMap<String,String> attributes;
-    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-    case 16:
-      jj_consume_token(16);
-  {if (true) return (Term)(Bag.EMPTY);}
+      left = parseKList(context);
+                              {if (true) return left;}
       break;
     case LCELLPR:
       jj_consume_token(LCELLPR);
-      label = jj_consume_token(PUREVAR);
+      label = jj_consume_token(SORT_ID);
       attributes = parseAttributes();
       leftEclipse = parseLeftEclipse();
       cellContents = parseCollection(context);
       rightEclipse = parseRightEclipse();
-      endLabel = jj_consume_token(PUREVAR);
+      endLabel = jj_consume_token(SORT_ID);
       jj_consume_token(RCELLPR);
- if(label.equals(endLabel))
-        if(leftEclipse)
+          if(label.image.equals(endLabel.image))
+         { if(leftEclipse)
         { if (rightEclipse)
                 {if (true) return new Cell(label.image,cellContents,attributes,"both");}
           else
@@ -130,24 +153,17 @@ public class KoreParser implements KoreParserConstants {
                 {if (true) return new Cell(label.image,cellContents,attributes,"right");}
           else
                 {if (true) return new Cell(label.image,cellContents,attributes,"none");}
-      break;
-    case LPR:
-      jj_consume_token(LPR);
-      left = parseCollection(context);
-      jj_consume_token(REWRITE);
-      right = parseCollection(context);
-      jj_consume_token(RPR);
- {if (true) return  new Rewrite(left, right, context);}
+        }
       break;
     default:
-      jj_la1[2] = jj_gen;
+      jj_la1[3] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static final public boolean parseLeftEclipse() throws ParseException {
+  final public boolean parseLeftEclipse() throws ParseException {
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case RCELLPR:
       jj_consume_token(RCELLPR);
@@ -158,14 +174,14 @@ public class KoreParser implements KoreParserConstants {
  {if (true) return true;}
       break;
     default:
-      jj_la1[3] = jj_gen;
+      jj_la1[4] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static final public boolean parseRightEclipse() throws ParseException {
+  final public boolean parseRightEclipse() throws ParseException {
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case LENDPR:
       jj_consume_token(LENDPR);
@@ -176,25 +192,25 @@ public class KoreParser implements KoreParserConstants {
  {if (true) return true;}
       break;
     default:
-      jj_la1[4] = jj_gen;
+      jj_la1[5] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static final public HashMap<String,String> parseAttributes() throws ParseException {
+  final public HashMap<String,String> parseAttributes() throws ParseException {
          HashMap<String,String > temp = new HashMap<String,String >();Token a;Token b;
     label_2:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
       case 17:
-      case 18:
       case 19:
+      case 20:
         ;
         break;
       default:
-        jj_la1[5] = jj_gen;
+        jj_la1[6] = jj_gen;
         break label_2;
       }
       switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
@@ -203,13 +219,13 @@ public class KoreParser implements KoreParserConstants {
         jj_consume_token(EQUAL);
         b = jj_consume_token(STRING);
         break;
-      case 18:
-        a = jj_consume_token(18);
+      case 19:
+        a = jj_consume_token(19);
         jj_consume_token(EQUAL);
         b = jj_consume_token(STRING);
         break;
-      case 19:
-        a = jj_consume_token(19);
+      case 20:
+        a = jj_consume_token(20);
         jj_consume_token(EQUAL);
         b = jj_consume_token(STRING);
           if(a.image.equals("color"))
@@ -220,7 +236,7 @@ public class KoreParser implements KoreParserConstants {
                 temp.put("stream",b.image);
         break;
       default:
-        jj_la1[6] = jj_gen;
+        jj_la1[7] = jj_gen;
         jj_consume_token(-1);
         throw new ParseException();
       }
@@ -229,7 +245,7 @@ public class KoreParser implements KoreParserConstants {
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term parseKList(Context context) throws ParseException {
+  final public Term parseKList(Context context) throws ParseException {
                                     ArrayList<Term> temp = new ArrayList<Term>();Term a;Term e;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case 15:
@@ -242,10 +258,14 @@ public class KoreParser implements KoreParserConstants {
     case 9:
     case 10:
     case 12:
+    case 16:
+    case 18:
+    case LCURLY:
+    case LSQUARE:
     case SORT_ID:
     case SORTKINJECT:
     case LABELCONSTANT:
-      a = parseKSeq(context);
+      a = parsePreKSeq(context);
  temp.add(a);
       label_3:
       while (true) {
@@ -254,24 +274,59 @@ public class KoreParser implements KoreParserConstants {
           ;
           break;
         default:
-          jj_la1[7] = jj_gen;
+          jj_la1[8] = jj_gen;
           break label_3;
         }
         jj_consume_token(13);
-        e = parseKSeq(context);
+        e = parsePreKSeq(context);
  temp.add(e);
       }
- {if (true) return new KList(temp);}
+  if(temp.size()==1)
+        {if (true) return temp.get(0);}
+  else
+    {if (true) return new KList(temp);}
       break;
     default:
-      jj_la1[8] = jj_gen;
+      jj_la1[9] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term parseKSeq(Context context) throws ParseException {
+  final public Term parsePreKSeq(Context context) throws ParseException {
+                                      ArrayList<Term> temp = new ArrayList<Term>();Term a;
+    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+    case LSQUARE:
+      jj_consume_token(LSQUARE);
+      a = parseKList(context);
+      jj_consume_token(RSQUARE);
+ {if (true) return a;}
+      break;
+    case NUM:
+    case STRING:
+    case 8:
+    case 9:
+    case 10:
+    case 12:
+    case 16:
+    case 18:
+    case LCURLY:
+    case SORT_ID:
+    case SORTKINJECT:
+    case LABELCONSTANT:
+      a = parseKSeq(context);
+                        {if (true) return a;}
+      break;
+    default:
+      jj_la1[10] = jj_gen;
+      jj_consume_token(-1);
+      throw new ParseException();
+    }
+    throw new Error("Missing return statement in function");
+  }
+
+  final public Term parseKSeq(Context context) throws ParseException {
                                   ArrayList<Term> temp = new ArrayList<Term>();Term a;Term e;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case 12:
@@ -283,10 +338,13 @@ public class KoreParser implements KoreParserConstants {
     case 8:
     case 9:
     case 10:
+    case 16:
+    case 18:
+    case LCURLY:
     case SORT_ID:
     case SORTKINJECT:
     case LABELCONSTANT:
-      a = parseKApp(context);
+      a = parsePreKApp(context);
  temp.add(a);
       label_4:
       while (true) {
@@ -295,68 +353,154 @@ public class KoreParser implements KoreParserConstants {
           ;
           break;
         default:
-          jj_la1[9] = jj_gen;
+          jj_la1[11] = jj_gen;
           break label_4;
         }
         jj_consume_token(14);
-        e = parseKApp(context);
+        e = parsePreKApp(context);
  temp.add(e);
       }
- {if (true) return new KSequence(temp);}
+ if (temp.size()==1)
+        {if (true) return temp.get(0);}
+ else
+  {if (true) return new KSequence(temp);}
       break;
     default:
-      jj_la1[10] = jj_gen;
+      jj_la1[12] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term parseKApp(Context context) throws ParseException {
-                                 Term a; Term b; Term c=null;
-    a = parseLabel(context);
-    label_5:
-    while (true) {
-      switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-      case LPR:
-        ;
-        break;
-      default:
-        jj_la1[11] = jj_gen;
-        break label_5;
-      }
-      jj_consume_token(LPR);
-      b = parseKList(context);
-      jj_consume_token(RPR);
-                                                                c=new KApp(a,b);a=c;
+  final public Term parsePreKApp(Context context) throws ParseException {
+                                      Term left; Term right;
+    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+    case LCURLY:
+      jj_consume_token(LCURLY);
+      left = parseCollection(context);
+      jj_consume_token(REWRITE);
+      right = parseCollection(context);
+      jj_consume_token(RCURLY);
+ {if (true) return  new Rewrite(left, right, context);}
+      break;
+    case NUM:
+    case STRING:
+    case 8:
+    case 9:
+    case 10:
+    case 16:
+    case 18:
+    case SORT_ID:
+    case SORTKINJECT:
+    case LABELCONSTANT:
+      left = parseKApp(context);
+ {if (true) return left;}
+      break;
+    default:
+      jj_la1[13] = jj_gen;
+      jj_consume_token(-1);
+      throw new ParseException();
     }
-   {if (true) return c;}
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term parseLabel(Context context) throws ParseException {
- Token n;Term a;
+  final public Term parseKApp(Context context) throws ParseException {
+                                 Term a; Term b; Term c=null;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+    case NUM:
+    case STRING:
+    case 8:
+    case 9:
     case 10:
+    case 16:
+    case SORT_ID:
     case SORTKINJECT:
-      if (jj_2_1(2)) {
-        a = choiceInjectOne(context);
-      } else {
+    case LABELCONSTANT:
+      a = parseKInject(context);
+      label_5:
+      while (true) {
         switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-        case 10:
-          a = choiceInjectTwo(context);
+        case LPR:
+          ;
           break;
         default:
-          jj_la1[12] = jj_gen;
-          jj_consume_token(-1);
-          throw new ParseException();
+          jj_la1[14] = jj_gen;
+          break label_5;
         }
+        jj_consume_token(LPR);
+        b = parseKList(context);
+        jj_consume_token(RPR);
+                                        c=new KApp(a,b);a=c;
       }
+   if (c == null)
+     {if (true) return a;}
+   else
+    {if (true) return c;}
+      break;
+    case 18:
+      jj_consume_token(18);
+      a = parseKApp(context);
+      jj_consume_token(LCURLY);
+      jj_consume_token(15);
+      jj_consume_token(RCURLY);
+                                                                   {if (true) return new Freezer(a);}
+      break;
+    default:
+      jj_la1[15] = jj_gen;
+      jj_consume_token(-1);
+      throw new ParseException();
+    }
+    throw new Error("Missing return statement in function");
+  }
+
+  final public Term parseKInject(Context context) throws ParseException {
+                                    Term a;Term b;
+    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+    case NUM:
+    case STRING:
+    case 8:
+    case 9:
+    case 16:
+    case SORT_ID:
+    case LABELCONSTANT:
+      a = parseLabel();
  {if (true) return a;}
       break;
+    case SORTKINJECT:
+      jj_consume_token(SORTKINJECT);
+      jj_consume_token(LPR);
+      a = parseCollection(context);
+      jj_consume_token(RPR);
+      jj_consume_token(LPR);
+      b = parseKList(context);
+      jj_consume_token(RPR);
+ {if (true) return new KApp(a,b);}
+      break;
+    case 10:
+      jj_consume_token(10);
+      jj_consume_token(LPR);
+      a = parseCollection(context);
+      jj_consume_token(RPR);
+      jj_consume_token(LPR);
+      b = parseKList(context);
+      jj_consume_token(RPR);
+ {if (true) return new KApp(a,b);}
+      break;
+    default:
+      jj_la1[16] = jj_gen;
+      jj_consume_token(-1);
+      throw new ParseException();
+    }
+    throw new Error("Missing return statement in function");
+  }
+
+  final public Term parseLabel() throws ParseException {
+ Token n;Token m;Term a;
+    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case NUM:
       n = jj_consume_token(NUM);
-               {if (true) return (KLabel)IntBuiltin.of(Integer.parseInt(n.image));}
+                {if (true) return (KLabel)IntBuiltin.of(Integer.parseInt(n.image));}
       break;
     case STRING:
       n = jj_consume_token(STRING);
@@ -365,6 +509,10 @@ public class KoreParser implements KoreParserConstants {
     case 8:
       jj_consume_token(8);
           {if (true) return (KLabel)BoolBuiltin.of("true");}
+      break;
+    case 16:
+      jj_consume_token(16);
+           {if (true) return Bag.EMPTY;}
       break;
     case 9:
       jj_consume_token(9);
@@ -375,7 +523,7 @@ public class KoreParser implements KoreParserConstants {
                         {if (true) return (KLabel) KLabelConstant.of(n.image);}
       break;
     case SORT_ID:
-      if (jj_2_2(2)) {
+      if (jj_2_1(2)) {
         a = choiceOne();
       } else {
         switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
@@ -383,43 +531,23 @@ public class KoreParser implements KoreParserConstants {
           a = choiceTwo();
           break;
         default:
-          jj_la1[13] = jj_gen;
+          jj_la1[17] = jj_gen;
           jj_consume_token(-1);
           throw new ParseException();
         }
       }
- {if (true) return a;}
+                                                    {if (true) return a;}
       break;
     default:
-      jj_la1[14] = jj_gen;
+      jj_la1[18] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term choiceInjectOne(Context context) throws ParseException {
-                                          Term e;
-    jj_consume_token(SORTKINJECT);
-    jj_consume_token(LPR);
-    e = parseCollection(context);
-    jj_consume_token(RPR);
-                                                              {if (true) return (Term)(new KInjectedLabel(e));}
-    throw new Error("Missing return statement in function");
-  }
-
-  static final public Term choiceInjectTwo(Context context) throws ParseException {
-                                         Term e;
-    jj_consume_token(10);
-    jj_consume_token(LPR);
-    e = parseCollection(context);
-    jj_consume_token(RPR);
- {if (true) return (Term)(new KInjectedLabel(e));}
-    throw new Error("Missing return statement in function");
-  }
-
-  static final public Term choiceOne() throws ParseException {
-                     Token n;Token m;
+  final public Term choiceOne() throws ParseException {
+                    Token n; Token m;
     n = jj_consume_token(SORT_ID);
     jj_consume_token(11);
     m = jj_consume_token(SORT_ID);
@@ -427,62 +555,43 @@ public class KoreParser implements KoreParserConstants {
     throw new Error("Missing return statement in function");
   }
 
-  static final public Term choiceTwo() throws ParseException {
+  final public Term choiceTwo() throws ParseException {
                     Token n;
     n = jj_consume_token(SORT_ID);
- {if (true) return (Term)KLabelConstant.of(n.image);}
+                {if (true) return (Term)KLabelConstant.of(n.image);}
     throw new Error("Missing return statement in function");
   }
 
-  static private boolean jj_2_1(int xla) {
+  private boolean jj_2_1(int xla) {
     jj_la = xla; jj_lastpos = jj_scanpos = token;
     try { return !jj_3_1(); }
     catch(LookaheadSuccess ls) { return true; }
     finally { jj_save(0, xla); }
   }
 
-  static private boolean jj_2_2(int xla) {
-    jj_la = xla; jj_lastpos = jj_scanpos = token;
-    try { return !jj_3_2(); }
-    catch(LookaheadSuccess ls) { return true; }
-    finally { jj_save(1, xla); }
-  }
-
-  static private boolean jj_3R_6() {
-    if (jj_scan_token(SORTKINJECT)) return true;
-    if (jj_scan_token(LPR)) return true;
-    return false;
-  }
-
-  static private boolean jj_3_1() {
-    if (jj_3R_6()) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_7() {
+  private boolean jj_3R_6() {
     if (jj_scan_token(SORT_ID)) return true;
     if (jj_scan_token(11)) return true;
     return false;
   }
 
-  static private boolean jj_3_2() {
-    if (jj_3R_7()) return true;
+  private boolean jj_3_1() {
+    if (jj_3R_6()) return true;
     return false;
   }
 
-  static private boolean jj_initialized_once = false;
   /** Generated Token Manager. */
-  static public KoreParserTokenManager token_source;
-  static SimpleCharStream jj_input_stream;
+  public KoreParserTokenManager token_source;
+  SimpleCharStream jj_input_stream;
   /** Current token. */
-  static public Token token;
+  public Token token;
   /** Next token. */
-  static public Token jj_nt;
-  static private int jj_ntk;
-  static private Token jj_scanpos, jj_lastpos;
-  static private int jj_la;
-  static private int jj_gen;
-  static final private int[] jj_la1 = new int[15];
+  public Token jj_nt;
+  private int jj_ntk;
+  private Token jj_scanpos, jj_lastpos;
+  private int jj_la;
+  private int jj_gen;
+  final private int[] jj_la1 = new int[19];
   static private int[] jj_la1_0;
   static private int[] jj_la1_1;
   static {
@@ -490,14 +599,14 @@ public class KoreParser implements KoreParserConstants {
       jj_la1_init_1();
    }
    private static void jj_la1_init_0() {
-      jj_la1_0 = new int[] {0x21010000,0x210197a0,0x21010000,0xa000000,0x14000000,0xe0000,0xe0000,0x2000,0x97a0,0x4000,0x17a0,0x20000000,0x400,0x0,0x7a0,};
+      jj_la1_0 = new int[] {0x200000,0x400000,0x20597a0,0x20597a0,0x14000000,0x28000000,0x1a0000,0x1a0000,0x2000,0x597a0,0x517a0,0x4000,0x517a0,0x507a0,0x40000000,0x507a0,0x107a0,0x0,0x103a0,};
    }
    private static void jj_la1_init_1() {
-      jj_la1_1 = new int[] {0x0,0x7,0x0,0x0,0x0,0x0,0x0,0x0,0x7,0x0,0x7,0x0,0x0,0x1,0x7,};
+      jj_la1_1 = new int[] {0x0,0x0,0x75,0x75,0x0,0x0,0x0,0x0,0x0,0x75,0x75,0x0,0x71,0x71,0x0,0x70,0x70,0x10,0x50,};
    }
-  static final private JJCalls[] jj_2_rtns = new JJCalls[2];
-  static private boolean jj_rescan = false;
-  static private int jj_gc = 0;
+  final private JJCalls[] jj_2_rtns = new JJCalls[1];
+  private boolean jj_rescan = false;
+  private int jj_gc = 0;
 
   /** Constructor with InputStream. */
   public KoreParser(java.io.InputStream stream) {
@@ -505,80 +614,59 @@ public class KoreParser implements KoreParserConstants {
   }
   /** Constructor with InputStream and supplied encoding */
   public KoreParser(java.io.InputStream stream, String encoding) {
-    if (jj_initialized_once) {
-      System.out.println("ERROR: Second call to constructor of static parser.  ");
-      System.out.println("       You must either use ReInit() or set the JavaCC option STATIC to false");
-      System.out.println("       during parser generation.");
-      throw new Error();
-    }
-    jj_initialized_once = true;
     try { jj_input_stream = new SimpleCharStream(stream, encoding, 1, 1); } catch(java.io.UnsupportedEncodingException e) { throw new RuntimeException(e); }
     token_source = new KoreParserTokenManager(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 15; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
   /** Reinitialise. */
-  static public void ReInit(java.io.InputStream stream) {
+  public void ReInit(java.io.InputStream stream) {
      ReInit(stream, null);
   }
   /** Reinitialise. */
-  static public void ReInit(java.io.InputStream stream, String encoding) {
+  public void ReInit(java.io.InputStream stream, String encoding) {
     try { jj_input_stream.ReInit(stream, encoding, 1, 1); } catch(java.io.UnsupportedEncodingException e) { throw new RuntimeException(e); }
     token_source.ReInit(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 15; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
   /** Constructor. */
   public KoreParser(java.io.Reader stream) {
-    if (jj_initialized_once) {
-      System.out.println("ERROR: Second call to constructor of static parser. ");
-      System.out.println("       You must either use ReInit() or set the JavaCC option STATIC to false");
-      System.out.println("       during parser generation.");
-      throw new Error();
-    }
-    jj_initialized_once = true;
     jj_input_stream = new SimpleCharStream(stream, 1, 1);
     token_source = new KoreParserTokenManager(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 15; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
   /** Reinitialise. */
-  static public void ReInit(java.io.Reader stream) {
+  public void ReInit(java.io.Reader stream) {
     jj_input_stream.ReInit(stream, 1, 1);
     token_source.ReInit(jj_input_stream);
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 15; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
   /** Constructor with generated Token Manager. */
   public KoreParser(KoreParserTokenManager tm) {
-    if (jj_initialized_once) {
-      System.out.println("ERROR: Second call to constructor of static parser. ");
-      System.out.println("       You must either use ReInit() or set the JavaCC option STATIC to false");
-      System.out.println("       during parser generation.");
-      throw new Error();
-    }
-    jj_initialized_once = true;
     token_source = tm;
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 15; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -588,11 +676,11 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 15; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
-  static private Token jj_consume_token(int kind) throws ParseException {
+  private Token jj_consume_token(int kind) throws ParseException {
     Token oldToken;
     if ((oldToken = token).next != null) token = token.next;
     else token = token.next = token_source.getNextToken();
@@ -617,8 +705,8 @@ public class KoreParser implements KoreParserConstants {
   }
 
   static private final class LookaheadSuccess extends java.lang.Error { }
-  static final private LookaheadSuccess jj_ls = new LookaheadSuccess();
-  static private boolean jj_scan_token(int kind) {
+  final private LookaheadSuccess jj_ls = new LookaheadSuccess();
+  private boolean jj_scan_token(int kind) {
     if (jj_scanpos == jj_lastpos) {
       jj_la--;
       if (jj_scanpos.next == null) {
@@ -641,7 +729,7 @@ public class KoreParser implements KoreParserConstants {
 
 
 /** Get the next Token. */
-  static final public Token getNextToken() {
+  final public Token getNextToken() {
     if (token.next != null) token = token.next;
     else token = token.next = token_source.getNextToken();
     jj_ntk = -1;
@@ -650,7 +738,7 @@ public class KoreParser implements KoreParserConstants {
   }
 
 /** Get the specific Token. */
-  static final public Token getToken(int index) {
+  final public Token getToken(int index) {
     Token t = token;
     for (int i = 0; i < index; i++) {
       if (t.next != null) t = t.next;
@@ -659,20 +747,20 @@ public class KoreParser implements KoreParserConstants {
     return t;
   }
 
-  static private int jj_ntk() {
+  private int jj_ntk() {
     if ((jj_nt=token.next) == null)
       return (jj_ntk = (token.next=token_source.getNextToken()).kind);
     else
       return (jj_ntk = jj_nt.kind);
   }
 
-  static private java.util.List<int[]> jj_expentries = new java.util.ArrayList<int[]>();
-  static private int[] jj_expentry;
-  static private int jj_kind = -1;
-  static private int[] jj_lasttokens = new int[100];
-  static private int jj_endpos;
+  private java.util.List<int[]> jj_expentries = new java.util.ArrayList<int[]>();
+  private int[] jj_expentry;
+  private int jj_kind = -1;
+  private int[] jj_lasttokens = new int[100];
+  private int jj_endpos;
 
-  static private void jj_add_error_token(int kind, int pos) {
+  private void jj_add_error_token(int kind, int pos) {
     if (pos >= 100) return;
     if (pos == jj_endpos + 1) {
       jj_lasttokens[jj_endpos++] = kind;
@@ -698,14 +786,14 @@ public class KoreParser implements KoreParserConstants {
   }
 
   /** Generate ParseException. */
-  static public ParseException generateParseException() {
+  public ParseException generateParseException() {
     jj_expentries.clear();
-    boolean[] la1tokens = new boolean[35];
+    boolean[] la1tokens = new boolean[39];
     if (jj_kind >= 0) {
       la1tokens[jj_kind] = true;
       jj_kind = -1;
     }
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < 19; i++) {
       if (jj_la1[i] == jj_gen) {
         for (int j = 0; j < 32; j++) {
           if ((jj_la1_0[i] & (1<<j)) != 0) {
@@ -717,7 +805,7 @@ public class KoreParser implements KoreParserConstants {
         }
       }
     }
-    for (int i = 0; i < 35; i++) {
+    for (int i = 0; i < 39; i++) {
       if (la1tokens[i]) {
         jj_expentry = new int[1];
         jj_expentry[0] = i;
@@ -735,16 +823,16 @@ public class KoreParser implements KoreParserConstants {
   }
 
   /** Enable tracing. */
-  static final public void enable_tracing() {
+  final public void enable_tracing() {
   }
 
   /** Disable tracing. */
-  static final public void disable_tracing() {
+  final public void disable_tracing() {
   }
 
-  static private void jj_rescan_token() {
+  private void jj_rescan_token() {
     jj_rescan = true;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 1; i++) {
     try {
       JJCalls p = jj_2_rtns[i];
       do {
@@ -752,7 +840,6 @@ public class KoreParser implements KoreParserConstants {
           jj_la = p.arg; jj_lastpos = jj_scanpos = p.first;
           switch (i) {
             case 0: jj_3_1(); break;
-            case 1: jj_3_2(); break;
           }
         }
         p = p.next;
@@ -762,7 +849,7 @@ public class KoreParser implements KoreParserConstants {
     jj_rescan = false;
   }
 
-  static private void jj_save(int index, int xla) {
+  private void jj_save(int index, int xla) {
     JJCalls p = jj_2_rtns[index];
     while (p.gen > jj_gen) {
       if (p.next == null) { p = p.next = new JJCalls(); break; }

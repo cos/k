@@ -1,6 +1,6 @@
 /**
  * JavaCC template file created by SF JavaCC plugin 1.5.17+ wizard for JavaCC 1.5.0+
- */options{  JDK_VERSION = "1.5";  static = true;}PARSER_BEGIN(KoreParser)package org.kframework.parser.kore;
+ */options{  JDK_VERSION = "1.5";  static = false;}PARSER_BEGIN(KoreParser)package org.kframework.parser.kore;
 
 import org.kframework.kil.Term;
 import org.kframework.kil.ASTNode;
@@ -18,6 +18,7 @@ import org.kframework.kil.Bag;
 import org.kframework.kil.Rewrite;
 import org.kframework.kil.Cell;
 import org.kframework.kil.Sentence;
+import org.kframework.kil.Freezer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import org.kframework.kil.loader.Context;
@@ -46,9 +47,9 @@ public class KoreParser{
         ExceptionType.ERROR, KExceptionGroup.PARSER, e.toString(), filename, null));
       return null;
     }
-  }}PARSER_END(KoreParser)SKIP :{  " "| "\r"| "\t"| "\n"}TOKEN : /* klabels */{ < NUM : (< DIGIT >)+ >| < #DIGIT : [ "0"-"9" ] >
-| <STRING: "\"" (~["\"", "\\", "\n"] |
-                 "\\\"" | "\\n" | "\\r" | "\\t" | "\\\\")* "\"">
+  }}PARSER_END(KoreParser)SKIP :{  " "| "\r"| "\t"| "\n"}TOKEN : /* klabels */{ < NUM : ("-")?(< DIGIT >)+ >| < #DIGIT : [ "0"-"9" ] >
+| <STRING: "\"" (~["\"", "\n"] |
+                 "\\\"" | "\\n" | "\\r" | "\\t")* "\"">
 | "true"
 | "false"
 | "# "
@@ -59,6 +60,7 @@ public class KoreParser{
 | ".KList"
 | ".Bag"
 | "color"
+| "#freezer"
 | "multiplicity"
 | "stream"
 | "requires"
@@ -72,39 +74,49 @@ public class KoreParser{
 | < LENDPRDOT : "...</" >
 | < LPR : "(" >
 | < RPR : ")" >
-| < PUREVAR : (["a"-"z", "A"-"Z"])+ >
-| < SORT_ID: ("#")?["A"-"Z"](["a"-"z", "A"-"Z", "0"-"9"])* (("#")?["A"-"Z"](["a"-"z", "A"-"Z", "0"-"9"])*)?>
+| <LCURLY: "{">
+| <RCURLY: "}">
+| <LSQUARE: "[">
+| <RSQUARE: "]">
+| < SORT_ID: ("#")?["A"-"Z","a"-"z","$","_","#","."](~["~","/","<",">","=","]",
+		"[","}","{",".",":",",","\""," ",")","(","\r","\t", "\\", "\n"]
+		| "`)" | "`(" | "\\n" | "\\r" | "\\t" | "\\\\")*>
 | < SORTKINJECT: (< SORT_ID >)("2KLabel") >
 | < LABELCONSTANT : ("\'") (~[" ",")","(","\r","\t", "\\", "\n"]
 		| "`)" | "`(" | "\\n" | "\\r" | "\\t" | "\\\\")+ >
 }
 
-Sentence parseTopLevel(Context context) : {Term col;Term req;Term ens;}
-{ col=parseCollection(context) "requires" req=parseKApp(context) "ensures" ens=parseKApp(context){Sentence result = new Sentence(); result.setBody(col);
-	result.setRequires(req);result.setEnsures(ens); return result; } }
+Sentence parseTopLevel(Context context) : {Term col;Term req=null;Term ens=null;}
+{ col=parseCollection(context)
+	("requires" req=parseKApp(context))?
+	 ("ensures" ens=parseKApp(context))? < EOF >{Sentence result = new Sentence(); result.setBody(col);
+	if (req!=null)
+		result.setRequires(req);
+	if (ens!=null)
+		result.setEnsures(ens);
+	return result; } }
 
-Term parseCollection(Context context) : {ArrayList<Term> temp = new ArrayList<Term>();Term a;}
-{ a=parseKList(context){return a;}
-| (a=parseCell(context) {temp.add(a);})+
-{return new Bag(temp);}
-|  {} }
+Term parseCollection(Context context) : {ArrayList<Term> result = new ArrayList<Term>();Term a;}
+{ (a=parseCellItem(context) {result.add(a);})+
+{return new Bag(result);}
+}
 
-Term parseCell(Context context) : {Token label;Token endLabel;Term cellContents;
-		boolean leftEclipse;boolean rightEclipse;Term left;Term right;HashMap<String,String> attributes;}
-{ ".Bag"
- {return (Term)(Bag.EMPTY);}
-| < LCELLPR > label=< PUREVAR > attributes=parseAttributes() leftEclipse=parseLeftEclipse()
-	 cellContents=parseCollection(context) rightEclipse=parseRightEclipse() endLabel=< PUREVAR > < RCELLPR >{if(label.equals(endLabel))
-	if(leftEclipse)	{ if (rightEclipse)
+Term parseCellItem(Context context) : {Term left;Term right;;Token label;Token endLabel;Term cellContents;
+		boolean leftEclipse;boolean rightEclipse;HashMap<String,String> attributes=null;}
+{ left = parseKList(context) {return left;}
+| < LCELLPR > label=< SORT_ID > attributes=parseAttributes() leftEclipse=parseLeftEclipse()
+	 cellContents=parseCollection(context) rightEclipse=parseRightEclipse() endLabel=< SORT_ID > < RCELLPR >
+	 {if(label.image.equals(endLabel.image))
+	 { if(leftEclipse)
+	{ if (rightEclipse)
 		return new Cell(label.image,cellContents,attributes,"both");
 	  else
-	  	return new Cell(label.image,cellContents,attributes,"left");	} else if (rightEclipse)
+	  	return new Cell(label.image,cellContents,attributes,"left");
+	} else if (rightEclipse)
 		return new Cell(label.image,cellContents,attributes,"right");
 	  else
-	  	return new Cell(label.image,cellContents,attributes,"none"); }
-| < LPR > left=parseCollection(context) < REWRITE > right=parseCollection(context) <RPR>
-{return  new Rewrite(left, right, context);}}
-
+	  	return new Cell(label.image,cellContents,attributes,"none");
+	}}}
 
 boolean parseLeftEclipse() : {}
 { < RCELLPR >{return false; }
@@ -128,49 +140,67 @@ HashMap<String,String> parseAttributes() :
 	  	temp.put("stream",b.image);		  })* {return temp;}  } 
 Term parseKList(Context context) : {ArrayList<Term> temp = new ArrayList<Term>();Term a;Term e;}
 { ".KList"
-{return KList.EMPTY;}| (a=parseKSeq(context)
+{return KList.EMPTY;}| (a=parsePreKSeq(context)
 {temp.add(a);})
-("," e=parseKSeq(context){temp.add(e); })*
-{return new KList(temp);}
+("," e=parsePreKSeq(context){temp.add(e); })*
+{ if(temp.size()==1)
+	return temp.get(0);
+  else
+    return new KList(temp);}
+}
+
+Term parsePreKSeq(Context context) : {ArrayList<Term> temp = new ArrayList<Term>();Term a;}
+{ < LSQUARE > a=parseKList(context) < RSQUARE >{return a;}| a=parseKSeq(context) {return a;}
 }
 
 Term parseKSeq(Context context) :{ArrayList<Term> temp = new ArrayList<Term>();Term a;Term e;}
-{ ".K" {return KSequence.EMPTY;}| (a=parseKApp(context){temp.add(a);})
- ("~>" e=parseKApp(context)
+{ ".K" {return KSequence.EMPTY;}| (a=parsePreKApp(context){temp.add(a);})
+ ("~>" e=parsePreKApp(context)
 {temp.add(e); })*
-{return new KSequence(temp);}
+{if (temp.size()==1)
+	return temp.get(0);
+ else
+  return new KSequence(temp);}
 }
+
+Term parsePreKApp(Context context) : {Term left; Term right;}
+{ < LCURLY > left=parseCollection(context)< REWRITE > right=parseCollection(context) <RCURLY>
+{return  new Rewrite(left, right, context);}| left=parseKApp(context){return left;}
+}
+
 
 Term parseKApp(Context context):{Term a; Term b; Term c=null;}
-{ a=parseLabel(context) (< LPR > b=parseKList(context) < RPR > {c=new KApp(a,b);a=c;})*  {return c;}
+{ a=parseKInject(context)
+(< LPR > b=parseKList(context) < RPR > {c=new KApp(a,b);a=c;})*  {if (c == null)
+     return a;
+   else
+    return c;}
+| "#freezer" a= parseKApp(context) < LCURLY > ".KList" < RCURLY > {return new Freezer(a);}
 }
 
-Term parseLabel(Context context) :
-{Token n;Term a;}
-{ (LOOKAHEAD(2) a=choiceInjectOne(context) | a=choiceInjectTwo(context))
-{return a;}
-| n = < NUM > {return (KLabel)IntBuiltin.of(Integer.parseInt(n.image)); }
+Term parseKInject(Context context):{Term a;Term b;}
+{ a=parseLabel(){return a;}
+| < SORTKINJECT > < LPR > a=parseCollection(context) < RPR > < LPR > b=parseKList(context) < RPR >
+{return new KApp(a,b);}
+|  "# " < LPR > a=parseCollection(context) < RPR > < LPR > b=parseKList(context) < RPR >
+{return new KApp(a,b);}
+}
+
+Term parseLabel() :
+{Token n;Token m;Term a;}
+{  n = < NUM > {return (KLabel)IntBuiltin.of(Integer.parseInt(n.image)); }
 | n = < STRING > {return (KLabel)StringBuiltin.of(n.image);}
 | "true" {return (KLabel)BoolBuiltin.of("true");}
+|  ".Bag" {return Bag.EMPTY;}
 | "false" {return (KLabel)BoolBuiltin.of("false");}
 | n= < LABELCONSTANT > {return (KLabel) KLabelConstant.of(n.image);}
-| (LOOKAHEAD(2) a=choiceOne() | a=choiceTwo()){return a;}
+| (LOOKAHEAD(2) a = choiceOne() | a = choiceTwo()) {return a;}
 }
 
-Term choiceInjectOne(Context context) : { Term e; }
-{ < SORTKINJECT > < LPR > e=parseCollection(context) < RPR > {return (Term)(new KInjectedLabel(e));}
-}
-
-Term choiceInjectTwo(Context context) : {Term e;}
-{ "# " < LPR > e=parseCollection(context) < RPR >
-{return (Term)(new KInjectedLabel(e));}
-}
-
-Term choiceOne() : { Token n;Token m; }
-{ n = < SORT_ID > ":" m = < SORT_ID > {return (Term)(new Variable(n.image,m.image));}
-}
+Term choiceOne() : {Token n; Token m;}{ n = < SORT_ID > ":" m = < SORT_ID > {return (Term)(new Variable(n.image,m.image));}}
 
 Term choiceTwo() : {Token n;}
-{n=< SORT_ID >
-{return (Term)KLabelConstant.of(n.image);}
-}
+{n=< SORT_ID > {return (Term)KLabelConstant.of(n.image);} }
+
+
+

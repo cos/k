@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.util.Formatter;
 
 import org.kframework.kil.ASTNode;
+import org.kframework.kil.KList;
 import org.kframework.kil.Module;
 import org.kframework.kil.Rule;
 import org.kframework.kil.Sentence;
@@ -78,28 +79,30 @@ public class ParseRulesFilter extends BasicTransformer {
 
     public ASTNode transform(StringSentence ss) throws TransformerException {
         if (ss.getType().equals(Constants.RULE) || ss.getType().equals(Constants.CONTEXT)) {
+        	if (ss.containsAttribute("kore") && ! GlobalSettings.parseKore) {
+        		// TODO: call the kore attribute per rule here
+        		System.out.println("We are parsing:"+ss.getContent());
+        		ASTNode config=KoreParser.parse(ss.getFilename(), ss.getContent(), this.context);
+                if (ss.getType().equals(Constants.CONTEXT))
+                    config = new org.kframework.kil.Context((Sentence) config);
+                else if (ss.getType().equals(Constants.RULE))
+                    config = new Rule((Sentence) config);
+                else { // should not reach here
+                    config = null;
+                    assert false : "Only context and rules have been implemented.";
+                }
+                Sentence st = (Sentence) config;
+                assert st.getLabel().equals(""); // labels should have been parsed in Basic Parsing
+                st.setLabel(ss.getLabel());
+                //assert st.getAttributes() == null || st.getAttributes().isEmpty(); // attributes should have been parsed in Basic Parsing
+                st.setAttributes(ss.getAttributes());
+                return config;
+        	} else {
             long startTime = System.currentTimeMillis();
             try {
                 ASTNode config;
                 
-                //parse .kore file by using kore parser
-                if(GlobalSettings.parseKore){
-                	
-                	config=KoreParser.parse(ss.getFilename(), ss.getContent(), this.context);
-                    if (ss.getType().equals(Constants.CONTEXT))
-                        config = new org.kframework.kil.Context((Sentence) config);
-                    else if (ss.getType().equals(Constants.RULE))
-                        config = new Rule((Sentence) config);
-                    else { // should not reach here
-                        config = null;
-                        assert false : "Only context and rules have been implemented.";
-                    }
-                    Sentence st = (Sentence) config;
-                    assert st.getLabel().equals(""); // labels should have been parsed in Basic Parsing
-                    st.setLabel(ss.getLabel());
-                    //assert st.getAttributes() == null || st.getAttributes().isEmpty(); // attributes should have been parsed in Basic Parsing
-                    st.setAttributes(ss.getAttributes());
-                } else if (GlobalSettings.fastKast) {
+                if (GlobalSettings.fastKast) {
                     // TODO(RaduM): load directly from ATerms
                     ASTNode anode = Sglr.run_sglri(context.dotk.getAbsolutePath() + "/def/Concrete.tbl", "CondSentence", ss.getContent(), ss.getFilename());
 
@@ -196,6 +199,7 @@ public class ParseRulesFilter extends BasicTransformer {
                 String msg = "Cannot parse sentence: " + e.getLocalizedMessage();
                 GlobalSettings.kem.register(new KException(ExceptionType.ERROR, KExceptionGroup.CRITICAL, msg, ss.getFilename(), ss.getLocation()));
             }
+        }
         }
         return ss;
     }
