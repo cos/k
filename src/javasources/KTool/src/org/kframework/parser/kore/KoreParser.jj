@@ -98,7 +98,10 @@ Sentence parseTopLevel(Context context) : {Term col;Term req=null;Term ens=null;
 
 Term parseCollection(Context context) : {ArrayList<Term> result = new ArrayList<Term>();Term a;}
 { (a=parseCellItem(context) {result.add(a);})+
-{return new Bag(result);}
+{ if(result.size()==1)
+    return result.get(0);
+  else 
+    return new Bag(result);}
 }
 
 Term parseCellItem(Context context) : {Term left;Term right;;Token label;Token endLabel;Term cellContents;

@@ -109,7 +109,10 @@ public class KoreParser implements KoreParserConstants {
         break label_1;
       }
     }
- {if (true) return new Bag(result);}
+  if(result.size()==1)
+    {if (true) return result.get(0);}
+  else
+    {if (true) return new Bag(result);}
     throw new Error("Missing return statement in function");
   }
 
