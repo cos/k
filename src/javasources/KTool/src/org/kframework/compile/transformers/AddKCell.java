@@ -59,8 +59,8 @@ public class AddKCell extends CopyOnWriteTransformer {
         	System.out.println(((Rewrite)(node.getBody())).getLeft().getClass().toString()) ;
         	System.out.println(((Rewrite)(node.getBody())).getLeft().getSort().toString()) ;
         	if(((Rewrite)(node.getBody())).getLeft() instanceof KApp){
-        		System.out.println(((KApp)(((Rewrite)(node.getBody())).getLeft())).getLabel().toString());
-        		System.out.println(((KApp)(((Rewrite)(node.getBody())).getLeft())).getChild().toString());
+        		System.out.println(((KApp)(((Rewrite)(node.getBody())).getLeft())).getLabel().getSort());
+        		System.out.println(((KApp)(((Rewrite)(node.getBody())).getLeft())).getChild().getSort());
         	}
         }
         if (!MetaK.isComputationSort(node.getBody().getSort())) {
