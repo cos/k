@@ -81,7 +81,6 @@ public class ParseRulesFilter extends BasicTransformer {
         if (ss.getType().equals(Constants.RULE) || ss.getType().equals(Constants.CONTEXT)) {
         	if (ss.containsAttribute("kore") && ! GlobalSettings.parseKore) {
         		// TODO: call the kore attribute per rule here
-        		System.out.println("We are parsing:"+ss.getContent());
         		ASTNode config=KoreParser.parse(ss.getFilename(), ss.getContent(), this.context);
                 if (ss.getType().equals(Constants.CONTEXT))
                     config = new org.kframework.kil.Context((Sentence) config);

@@ -92,15 +92,14 @@ public class KoreParser implements KoreParserConstants {
       case 8:
       case 9:
       case 10:
-      case 12:
-      case 15:
+      case 13:
       case 16:
-      case 18:
+      case 17:
+      case TOKLABEL:
       case LCELLPR:
       case LCURLY:
       case LSQUARE:
       case SORT_ID:
-      case SORTKINJECT:
       case LABELCONSTANT:
         ;
         break;
@@ -125,14 +124,13 @@ public class KoreParser implements KoreParserConstants {
     case 8:
     case 9:
     case 10:
-    case 12:
-    case 15:
+    case 13:
     case 16:
-    case 18:
+    case 17:
+    case TOKLABEL:
     case LCURLY:
     case LSQUARE:
     case SORT_ID:
-    case SORTKINJECT:
     case LABELCONSTANT:
       left = parseKList(context);
                               {if (true) return left;}
@@ -207,7 +205,7 @@ public class KoreParser implements KoreParserConstants {
     label_2:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-      case 17:
+      case 18:
       case 19:
       case 20:
         ;
@@ -217,8 +215,8 @@ public class KoreParser implements KoreParserConstants {
         break label_2;
       }
       switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-      case 17:
-        a = jj_consume_token(17);
+      case 18:
+        a = jj_consume_token(18);
         jj_consume_token(EQUAL);
         b = jj_consume_token(STRING);
         break;
@@ -251,8 +249,8 @@ public class KoreParser implements KoreParserConstants {
   final public Term parseKList(Context context) throws ParseException {
                                     ArrayList<Term> temp = new ArrayList<Term>();Term a;Term e;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-    case 15:
-      jj_consume_token(15);
+    case 16:
+      jj_consume_token(16);
  {if (true) return KList.EMPTY;}
       break;
     case NUM:
@@ -260,27 +258,26 @@ public class KoreParser implements KoreParserConstants {
     case 8:
     case 9:
     case 10:
-    case 12:
-    case 16:
-    case 18:
+    case 13:
+    case 17:
+    case TOKLABEL:
     case LCURLY:
     case LSQUARE:
     case SORT_ID:
-    case SORTKINJECT:
     case LABELCONSTANT:
       a = parsePreKSeq(context);
  temp.add(a);
       label_3:
       while (true) {
         switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-        case 13:
+        case 14:
           ;
           break;
         default:
           jj_la1[8] = jj_gen;
           break label_3;
         }
-        jj_consume_token(13);
+        jj_consume_token(14);
         e = parsePreKSeq(context);
  temp.add(e);
       }
@@ -311,12 +308,11 @@ public class KoreParser implements KoreParserConstants {
     case 8:
     case 9:
     case 10:
-    case 12:
-    case 16:
-    case 18:
+    case 13:
+    case 17:
+    case TOKLABEL:
     case LCURLY:
     case SORT_ID:
-    case SORTKINJECT:
     case LABELCONSTANT:
       a = parseKSeq(context);
                         {if (true) return a;}
@@ -332,8 +328,8 @@ public class KoreParser implements KoreParserConstants {
   final public Term parseKSeq(Context context) throws ParseException {
                                   ArrayList<Term> temp = new ArrayList<Term>();Term a;Term e;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-    case 12:
-      jj_consume_token(12);
+    case 13:
+      jj_consume_token(13);
         {if (true) return KSequence.EMPTY;}
       break;
     case NUM:
@@ -341,25 +337,24 @@ public class KoreParser implements KoreParserConstants {
     case 8:
     case 9:
     case 10:
-    case 16:
-    case 18:
+    case 17:
+    case TOKLABEL:
     case LCURLY:
     case SORT_ID:
-    case SORTKINJECT:
     case LABELCONSTANT:
       a = parsePreKApp(context);
  temp.add(a);
       label_4:
       while (true) {
         switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-        case 14:
+        case 15:
           ;
           break;
         default:
           jj_la1[11] = jj_gen;
           break label_4;
         }
-        jj_consume_token(14);
+        jj_consume_token(15);
         e = parsePreKApp(context);
  temp.add(e);
       }
@@ -377,7 +372,7 @@ public class KoreParser implements KoreParserConstants {
   }
 
   final public Term parsePreKApp(Context context) throws ParseException {
-                                      Term left; Term right;
+                                      Term left; Term right;Term test;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case LCURLY:
       jj_consume_token(LCURLY);
@@ -385,17 +380,16 @@ public class KoreParser implements KoreParserConstants {
       jj_consume_token(REWRITE);
       right = parseCollection(context);
       jj_consume_token(RCURLY);
- {if (true) return  new Rewrite(left, right, context);}
+  {if (true) return  new Rewrite(left, right, context);}
       break;
     case NUM:
     case STRING:
     case 8:
     case 9:
     case 10:
-    case 16:
-    case 18:
+    case 17:
+    case TOKLABEL:
     case SORT_ID:
-    case SORTKINJECT:
     case LABELCONSTANT:
       left = parseKApp(context);
  {if (true) return left;}
@@ -409,89 +403,60 @@ public class KoreParser implements KoreParserConstants {
   }
 
   final public Term parseKApp(Context context) throws ParseException {
-                                 Term a; Term b; Term c=null;
-    switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-    case NUM:
-    case STRING:
-    case 8:
-    case 9:
-    case 10:
-    case 16:
-    case SORT_ID:
-    case SORTKINJECT:
-    case LABELCONSTANT:
-      a = parseKInject(context);
-      label_5:
-      while (true) {
-        switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
-        case LPR:
-          ;
-          break;
-        default:
-          jj_la1[14] = jj_gen;
-          break label_5;
-        }
-        jj_consume_token(LPR);
-        b = parseKList(context);
-        jj_consume_token(RPR);
-                                        c=new KApp(a,b);a=c;
+                                 Term a; Term b; Term c=null;Token theSort;
+    a = parseKInject(context);
+    label_5:
+    while (true) {
+      switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
+      case LPR:
+        ;
+        break;
+      default:
+        jj_la1[14] = jj_gen;
+        break label_5;
       }
+      jj_consume_token(LPR);
+      b = parseKList(context);
+      jj_consume_token(RPR);
+ c=new KApp(a,b);a=c;
+    }
    if (c == null)
      {if (true) return a;}
    else
     {if (true) return c;}
-      break;
-    case 18:
-      jj_consume_token(18);
-      a = parseKApp(context);
-      jj_consume_token(LCURLY);
-      jj_consume_token(15);
-      jj_consume_token(RCURLY);
-                                                                   {if (true) return new Freezer(a);}
-      break;
-    default:
-      jj_la1[15] = jj_gen;
-      jj_consume_token(-1);
-      throw new ParseException();
-    }
     throw new Error("Missing return statement in function");
   }
 
   final public Term parseKInject(Context context) throws ParseException {
-                                    Term a;Term b;
+                                    Term a;
     switch ((jj_ntk==-1)?jj_ntk():jj_ntk) {
     case NUM:
     case STRING:
     case 8:
     case 9:
-    case 16:
+    case 17:
     case SORT_ID:
     case LABELCONSTANT:
       a = parseLabel();
  {if (true) return a;}
       break;
-    case SORTKINJECT:
-      jj_consume_token(SORTKINJECT);
+    case TOKLABEL:
+      jj_consume_token(TOKLABEL);
+      jj_consume_token(SORT_ID);
       jj_consume_token(LPR);
       a = parseCollection(context);
       jj_consume_token(RPR);
-      jj_consume_token(LPR);
-      b = parseKList(context);
-      jj_consume_token(RPR);
- {if (true) return new KApp(a,b);}
+ {if (true) return new KInjectedLabel(a);}
       break;
     case 10:
       jj_consume_token(10);
       jj_consume_token(LPR);
       a = parseCollection(context);
       jj_consume_token(RPR);
-      jj_consume_token(LPR);
-      b = parseKList(context);
-      jj_consume_token(RPR);
- {if (true) return new KApp(a,b);}
+ {if (true) return new KInjectedLabel(a);}
       break;
     default:
-      jj_la1[16] = jj_gen;
+      jj_la1[15] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -513,8 +478,8 @@ public class KoreParser implements KoreParserConstants {
       jj_consume_token(8);
           {if (true) return (KLabel)BoolBuiltin.of("true");}
       break;
-    case 16:
-      jj_consume_token(16);
+    case 17:
+      jj_consume_token(17);
            {if (true) return Bag.EMPTY;}
       break;
     case 9:
@@ -523,7 +488,7 @@ public class KoreParser implements KoreParserConstants {
       break;
     case LABELCONSTANT:
       n = jj_consume_token(LABELCONSTANT);
-                        {if (true) return (KLabel) KLabelConstant.of(n.image);}
+                         {if (true) return KLabelConstant.of(n.image);}
       break;
     case SORT_ID:
       if (jj_2_1(2)) {
@@ -534,7 +499,7 @@ public class KoreParser implements KoreParserConstants {
           a = choiceTwo();
           break;
         default:
-          jj_la1[17] = jj_gen;
+          jj_la1[16] = jj_gen;
           jj_consume_token(-1);
           throw new ParseException();
         }
@@ -542,7 +507,7 @@ public class KoreParser implements KoreParserConstants {
                                                     {if (true) return a;}
       break;
     default:
-      jj_la1[18] = jj_gen;
+      jj_la1[17] = jj_gen;
       jj_consume_token(-1);
       throw new ParseException();
     }
@@ -594,7 +559,7 @@ public class KoreParser implements KoreParserConstants {
   private Token jj_scanpos, jj_lastpos;
   private int jj_la;
   private int jj_gen;
-  final private int[] jj_la1 = new int[19];
+  final private int[] jj_la1 = new int[18];
   static private int[] jj_la1_0;
   static private int[] jj_la1_1;
   static {
@@ -602,10 +567,10 @@ public class KoreParser implements KoreParserConstants {
       jj_la1_init_1();
    }
    private static void jj_la1_init_0() {
-      jj_la1_0 = new int[] {0x200000,0x400000,0x20597a0,0x20597a0,0x14000000,0x28000000,0x1a0000,0x1a0000,0x2000,0x597a0,0x517a0,0x4000,0x517a0,0x507a0,0x40000000,0x507a0,0x107a0,0x0,0x103a0,};
+      jj_la1_0 = new int[] {0x200000,0x400000,0x48327a0,0x48327a0,0x28000000,0x50000000,0x1c0000,0x1c0000,0x4000,0x8327a0,0x8227a0,0x8000,0x8227a0,0x8207a0,0x80000000,0x8207a0,0x0,0x203a0,};
    }
    private static void jj_la1_init_1() {
-      jj_la1_1 = new int[] {0x0,0x0,0x75,0x75,0x0,0x0,0x0,0x0,0x0,0x75,0x75,0x0,0x71,0x71,0x0,0x70,0x70,0x10,0x50,};
+      jj_la1_1 = new int[] {0x0,0x0,0x6a,0x6a,0x0,0x0,0x0,0x0,0x0,0x6a,0x6a,0x0,0x62,0x62,0x0,0x60,0x20,0x60,};
    }
   final private JJCalls[] jj_2_rtns = new JJCalls[1];
   private boolean jj_rescan = false;
@@ -622,7 +587,7 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 18; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -637,7 +602,7 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 18; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -648,7 +613,7 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 18; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -659,7 +624,7 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 18; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -669,7 +634,7 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 18; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -679,7 +644,7 @@ public class KoreParser implements KoreParserConstants {
     token = new Token();
     jj_ntk = -1;
     jj_gen = 0;
-    for (int i = 0; i < 19; i++) jj_la1[i] = -1;
+    for (int i = 0; i < 18; i++) jj_la1[i] = -1;
     for (int i = 0; i < jj_2_rtns.length; i++) jj_2_rtns[i] = new JJCalls();
   }
 
@@ -796,7 +761,7 @@ public class KoreParser implements KoreParserConstants {
       la1tokens[jj_kind] = true;
       jj_kind = -1;
     }
-    for (int i = 0; i < 19; i++) {
+    for (int i = 0; i < 18; i++) {
       if (jj_la1[i] == jj_gen) {
         for (int j = 0; j < 32; j++) {
           if ((jj_la1_0[i] & (1<<j)) != 0) {

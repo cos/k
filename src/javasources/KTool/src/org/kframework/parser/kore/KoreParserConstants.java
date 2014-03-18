@@ -17,35 +17,35 @@ public interface KoreParserConstants {
   /** RegularExpression Id. */
   int STRING = 7;
   /** RegularExpression Id. */
-  int REWRITE = 23;
+  int TOKLABEL = 23;
   /** RegularExpression Id. */
-  int EQUAL = 24;
+  int REWRITE = 24;
   /** RegularExpression Id. */
-  int LCELLPR = 25;
+  int EQUAL = 25;
   /** RegularExpression Id. */
-  int RCELLPR = 26;
+  int LCELLPR = 26;
   /** RegularExpression Id. */
-  int LENDPR = 27;
+  int RCELLPR = 27;
   /** RegularExpression Id. */
-  int RCELLPRDOT = 28;
+  int LENDPR = 28;
   /** RegularExpression Id. */
-  int LENDPRDOT = 29;
+  int RCELLPRDOT = 29;
   /** RegularExpression Id. */
-  int LPR = 30;
+  int LENDPRDOT = 30;
   /** RegularExpression Id. */
-  int RPR = 31;
+  int LPR = 31;
   /** RegularExpression Id. */
-  int LCURLY = 32;
+  int RPR = 32;
   /** RegularExpression Id. */
-  int RCURLY = 33;
+  int LCURLY = 33;
   /** RegularExpression Id. */
-  int LSQUARE = 34;
+  int RCURLY = 34;
   /** RegularExpression Id. */
-  int RSQUARE = 35;
+  int LSQUARE = 35;
   /** RegularExpression Id. */
-  int SORT_ID = 36;
+  int RSQUARE = 36;
   /** RegularExpression Id. */
-  int SORTKINJECT = 37;
+  int SORT_ID = 37;
   /** RegularExpression Id. */
   int LABELCONSTANT = 38;
 
@@ -66,17 +66,18 @@ public interface KoreParserConstants {
     "\"false\"",
     "\"# \"",
     "\":\"",
+    "\"::\"",
     "\".K\"",
     "\",\"",
     "\"~>\"",
     "\".KList\"",
     "\".Bag\"",
     "\"color\"",
-    "\"#freezer\"",
     "\"multiplicity\"",
     "\"stream\"",
     "\"requires\"",
     "\"ensures\"",
+    "\"2KLabel\"",
     "\"=>\"",
     "\"=\"",
     "\"<\"",
@@ -91,7 +92,6 @@ public interface KoreParserConstants {
     "\"[\"",
     "\"]\"",
     "<SORT_ID>",
-    "<SORTKINJECT>",
     "<LABELCONSTANT>",
   };
 

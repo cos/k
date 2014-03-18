@@ -298,7 +298,7 @@ class KoreFilter extends BasicVisitor {
     public void visit(Freezer node) {
         indenter.append("#freezer ");
         node.getTerm().accept(this);
-        indenter.append("{.KList}");
+        indenter.append("(.KList)");
     }
     
     @Override
@@ -372,6 +372,7 @@ class KoreFilter extends BasicVisitor {
               this.indenter.append("(");
               node.getChild().accept(this);
               this.indenter.append(")");
+              this.indenter.append(":"+node.getSort());
         }
 
         @Override
@@ -383,8 +384,8 @@ class KoreFilter extends BasicVisitor {
         public void visit(KInjectedLabel kInjectedLabel) {
             Term term = kInjectedLabel.getTerm();
             if (MetaK.isKSort(term.getSort())) {
+                indenter.append(" 2KLabel ");
                 indenter.append(KInjectedLabel.getInjectedSort(term.getSort()));
-                indenter.append("2KLabel ");
             } else {
                 indenter.append("# ");
             }
@@ -533,9 +534,19 @@ class KoreFilter extends BasicVisitor {
         @Override
         public void visit(Rewrite rewrite) {
         	indenter.append("{ ");
-            rewrite.getLeft().accept(this);
+        	if(rewrite.getLeft().getSort().equals(KSorts.KLABEL)){
+        		KApp result = (new KApp(rewrite.getLeft(),KList.EMPTY));
+        		result.accept(this);
+        	} else {
+        		rewrite.getLeft().accept(this);
+        	}
             indenter.append(" => ");
-            rewrite.getRight().accept(this);
+        	if(rewrite.getRight().getSort().equals(KSorts.KLABEL)){
+        		KApp result = (new KApp(rewrite.getRight(),KList.EMPTY));
+        		result.accept(this);
+        	} else {
+        		rewrite.getRight().accept(this);
+        	}
             indenter.append(" }");
             indenter.append('\n');
         }
@@ -655,7 +666,10 @@ class KoreFilter extends BasicVisitor {
         
         @Override
         public void visit(TermCons node){
-            (new KApp(new KLabelConstant(node.getProduction().getKLabel()),new KList(node.getContents()))).accept(this);
+        	
+        	KApp result = (new KApp(new KLabelConstant(node.getProduction().getKLabel()),new KList(node.getContents())));
+        	result.setSort(node.getSort());
+        	result.accept(this);
 
         }
 }

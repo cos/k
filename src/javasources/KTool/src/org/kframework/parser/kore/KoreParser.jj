@@ -54,17 +54,18 @@ public class KoreParser{
 | "false"
 | "# "
 | ":"
+| "::"
 | ".K"
 | ","
 | "~>"
 | ".KList"
 | ".Bag"
 | "color"
-| "#freezer"
 | "multiplicity"
 | "stream"
 | "requires"
 | "ensures"
+| < TOKLABEL : "2KLabel" >
 | < REWRITE : "=>" >
 | < EQUAL : "=" >
 | < LCELLPR : "<" >
@@ -81,8 +82,7 @@ public class KoreParser{
 | < SORT_ID: ("#")?["A"-"Z","a"-"z","$","_","#"](~["~","/","<",">","=","]",
 		"[","}","{",".",":",",","\""," ",")","(","\r","\t", "\\", "\n"]
 		| "`)" | "`(" | "\\n" | "\\r" | "\\t" | "\\\\")*>
-| < SORTKINJECT: (< SORT_ID >)("2KLabel") >
-| < LABELCONSTANT : ("\'") (~[" ",")","(","\r","\t", "\\", "\n"]
+| < LABELCONSTANT : ("\'") (~[" ",")","(","\r","\t", "\\",":", "\n"]
 		| "`)" | "`(" | "\\n" | "\\r" | "\\t" | "\\\\")+ >
 }
 
@@ -166,27 +166,27 @@ Term parseKSeq(Context context) :{ArrayList<Term> temp = new ArrayList<Term>();T
   return new KSequence(temp);}
 }
 
-Term parsePreKApp(Context context) : {Term left; Term right;}
+Term parsePreKApp(Context context) : {Term left; Term right;Term test;}
 { < LCURLY > left=parseCollection(context)< REWRITE > right=parseCollection(context) <RCURLY>
-{return  new Rewrite(left, right, context);}| left=parseKApp(context){return left;}
+{ return  new Rewrite(left, right, context);}| left=parseKApp(context){return left;}
 }
 
 
-Term parseKApp(Context context):{Term a; Term b; Term c=null;}
+Term parseKApp(Context context):{Term a; Term b; Term c=null;Token theSort;}
 { a=parseKInject(context)
-(< LPR > b=parseKList(context) < RPR > {c=new KApp(a,b);a=c;})*  {if (c == null)
+(< LPR > b=parseKList(context) < RPR >
+{c=new KApp(a,b);a=c;})*  {if (c == null)
      return a;
    else
     return c;}
-| "#freezer" a= parseKApp(context) < LCURLY > ".KList" < RCURLY > {return new Freezer(a);}
 }
 
-Term parseKInject(Context context):{Term a;Term b;}
+Term parseKInject(Context context):{Term a;}
 { a=parseLabel(){return a;}
-| < SORTKINJECT > < LPR > a=parseCollection(context) < RPR > < LPR > b=parseKList(context) < RPR >
-{return new KApp(a,b);}
-|  "# " < LPR > a=parseCollection(context) < RPR > < LPR > b=parseKList(context) < RPR >
-{return new KApp(a,b);}
+| < TOKLABEL > < SORT_ID > < LPR > a=parseCollection(context) < RPR >
+{return new KInjectedLabel(a);}
+|  "# " < LPR > a=parseCollection(context) < RPR >
+{return new KInjectedLabel(a);}
 }
 
 Term parseLabel() :
@@ -196,7 +196,7 @@ Term parseLabel() :
 | "true" {return (KLabel)BoolBuiltin.of("true");}
 |  ".Bag" {return Bag.EMPTY;}
 | "false" {return (KLabel)BoolBuiltin.of("false");}
-| n= < LABELCONSTANT > {return (KLabel) KLabelConstant.of(n.image);}
+| n= < LABELCONSTANT >  {return KLabelConstant.of(n.image);}
 | (LOOKAHEAD(2) a = choiceOne() | a = choiceTwo()) {return a;}
 }
 
