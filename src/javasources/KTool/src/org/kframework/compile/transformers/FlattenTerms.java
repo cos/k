@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Set;
 
 
+/**
+ * Flattens all terms of user-defined sorts to their kore KLabelled representation.
+ */
 public class FlattenTerms extends CopyOnWriteTransformer {
     FlattenKSyntax kTrans;
 

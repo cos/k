@@ -14,6 +14,9 @@ import java.util.*;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Transforms syntax declarations for concrete user sorts into KLabel declaration.
+ */
 
 public class FlattenSyntax extends CopyOnWriteTransformer {
     Set<String> listSeparators = new HashSet<String>();
@@ -24,29 +27,12 @@ public class FlattenSyntax extends CopyOnWriteTransformer {
     }
 
     @Override
-    public ASTNode transform(Definition node) throws TransformerException {
-        //TODO: Remove the preprocessing below once backends updated to use FlattenTerms and prev. steps don't introduce new terms
-        node = (Definition) node.accept(new FlattenTerms(context));
-        return super.transform(node);
-    }
-
-    @Override
     public ASTNode transform(Module node) throws TransformerException {
         listSeparators.clear();
         node = (Module) super.transform(node);
         if (listSeparators.isEmpty())
             return node;
 
-        // List<PriorityBlock> pbs = new ArrayList<PriorityBlock>();
-        // PriorityBlock pb = new PriorityBlock();
-        // pbs.add(pb);
-        // Syntax syn = new Syntax(new Sort(KSorts.KLABEL), pbs);
-        // node.getItems().add(syn);
-        // for (String separator : listSeparators) {
-        // List<ProductionItem> pis = new ArrayList<ProductionItem>();
-        // pis.add(new Terminal(MetaK.getListUnitLabel(separator)));
-        // pb.getProductions().add(new Production(new Sort(KSorts.KLABEL), pis));
-        // }
         for (String sep : listSeparators) {
             node.addConstant(KSorts.KLABEL, MetaK.getListUnitLabel(sep));
         }

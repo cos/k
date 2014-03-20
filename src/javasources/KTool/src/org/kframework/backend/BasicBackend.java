@@ -57,7 +57,6 @@ public abstract class BasicBackend implements Backend {
 //        steps.add(new EnforceInferredSorts(context));
         steps.add(new CheckVisitorStep<Definition>(new CheckVariables(context), context));
         steps.add(new CheckVisitorStep<Definition>(new CheckRewrite(context), context));
-        steps.add(new FlattenTerms(context));
         //TODO: Liyi please add KORE printing here
         steps.add(new FlattenModules(context));
         // Strictness desugaring
@@ -89,6 +88,7 @@ public abstract class BasicBackend implements Backend {
         steps.add(new ResolveSyntaxPredicates(context));
         steps.add(new ResolveBuiltins(context));
         steps.add(new ResolveListOfK(context));
+        steps.add(new FlattenTerms(context));
         steps.add(new FlattenSyntax(context));
         steps.add(new InitializeConfigurationStructure(context));
         steps.add(new AddKStringConversion(context));
