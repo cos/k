@@ -618,7 +618,8 @@ public class MaudeKRun implements KRun {
                 List<Element> child = XmlUtil.getChildElements(elem);
                 assertXML(child.size() == 2);
                 Term result = parseXML(child.get(1), context);
-                rawSubstitution.put(child.get(0).getAttribute("op"), result);
+                String var = child.get(0).getAttribute("op");
+                rawSubstitution.put(var.substring(0, var.indexOf(':')), result);
             }
 
             Term rawResult = (Term) new SubstitutionFilter(rawSubstitution, context)
@@ -663,7 +664,7 @@ public class MaudeKRun implements KRun {
     }
 
     @Override
-    public KRunResult<TestGenResults> generate(Integer bound, Integer depth, SearchType searchType, Rule pattern, Term cfg, RuleCompilerSteps compilationInfo) throws KRunExecutionException{
+    public KRunResult<SearchResults> generate(Integer bound, Integer depth, SearchType searchType, Rule pattern, Term cfg, RuleCompilerSteps compilationInfo) throws KRunExecutionException{
         throw new UnsupportedOperationException("--generate-tests");
     }
 

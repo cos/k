@@ -245,6 +245,18 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
     }
 
     @Override
+    public ASTNode transform(ListUpdate listUpdate) {
+        ASTNode astNode = listUpdate.accept(preTransformer);
+        if (astNode instanceof DoneTransforming) {
+            return ((DoneTransforming) astNode).getContents();
+        }
+        assert astNode instanceof ListUpdate : "preTransformer should not modify type";
+        listUpdate = (ListUpdate) astNode;
+        listUpdate = (ListUpdate) super.transform(listUpdate);
+        return listUpdate.accept(postTransformer);
+    }
+
+    @Override
     public ASTNode transform(BuiltinList builtinList) {
         ASTNode astNode = builtinList.accept(preTransformer);
         if (astNode instanceof DoneTransforming) {
@@ -264,8 +276,7 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
         }
         assert astNode instanceof BuiltinMap : "preTransformer should not modify type";
         builtinMap = (BuiltinMap) astNode;
-        builtinMap = (BuiltinMap) super.transform(builtinMap);
-        return builtinMap.accept(postTransformer);
+        return ((JavaSymbolicObject) super.transform(builtinMap)).accept(postTransformer);
     }
 
     @Override

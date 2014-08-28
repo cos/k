@@ -4,17 +4,18 @@ package org.kframework.backend.java.kil;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.kframework.backend.java.symbolic.SymbolicConstraint;
-import org.kframework.backend.java.symbolic.SymbolicConstraint.Equality;
 import org.kframework.backend.java.symbolic.Transformer;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.backend.java.util.Debug;
 import org.kframework.backend.java.util.Utils;
 import org.kframework.kil.ASTNode;
 import org.kframework.main.Tool;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.Maps;
 
 
 /**
@@ -142,6 +143,7 @@ public class ConstrainedTerm extends JavaSymbolicObject {
 
     public SymbolicConstraint matchImplies(ConstrainedTerm constrainedTerm) {
         SymbolicConstraint unificationConstraint = new SymbolicConstraint(constrainedTerm.termContext());
+        unificationConstraint.addAll(constraint.substitution());
         unificationConstraint.add(data.term, constrainedTerm.data.term);
         unificationConstraint.simplify();
 
@@ -149,14 +151,10 @@ public class ConstrainedTerm extends JavaSymbolicObject {
             return null;
         }
 
-        unificationConstraint.addAll(constrainedTerm.lookups);
-        unificationConstraint.addAll(constrainedTerm.constraint);
-        unificationConstraint.simplify();
+        unificationConstraint.addAllThenSimplify(constrainedTerm.lookups, constrainedTerm.constraint);
+        unificationConstraint.expandPatternsAndSimplify(false);
 
-        unificationConstraint.expandPatterns(unificationConstraint, false);
-        unificationConstraint.simplify();
-
-        Set<Variable> variables = unificationConstraint.variableSet();
+        final Set<Variable> variables = unificationConstraint.variableSet();
         variables.removeAll(variableSet());
         unificationConstraint.orientSubstitution(variables);
         if (unificationConstraint.isFalse()
@@ -164,31 +162,26 @@ public class ConstrainedTerm extends JavaSymbolicObject {
             return null;
         }
 
-        SymbolicConstraint leftHandSide = new SymbolicConstraint(constrainedTerm.termContext());
-        leftHandSide.addAll(constraint);
-        leftHandSide.simplify();
+        SymbolicConstraint leftHandSide = SymbolicConstraint
+                .simplifiedConstraintFrom(constrainedTerm.termContext(), constraint);
 
-        SymbolicConstraint rightHandSide = new SymbolicConstraint(constrainedTerm.termContext());
-        for (Map.Entry<Variable, Term> entry : unificationConstraint.substitution().entrySet()) {
-            if (!variables.contains(entry.getKey())) {
-                rightHandSide.add(entry.getKey(), entry.getValue());
+        Predicate<Variable> notInVariables = new Predicate<Variable>() {
+            @Override
+            public boolean apply(Variable var) {
+                return variables.contains(var);
             }
-        }
-        for (Equality equality : unificationConstraint.equalities()) {
-            rightHandSide.add(equality.leftHandSide(), equality.rightHandSide());
-        }
-        for (Map.Entry<Variable, Term> entry : leftHandSide.substitution().entrySet()) {
-            rightHandSide.add(entry.getKey(), entry.getValue());
-        }
-        rightHandSide.simplify();
+        };
+        SymbolicConstraint rightHandSide = SymbolicConstraint
+                .simplifiedConstraintFrom(constrainedTerm.termContext(),
+                        Maps.filterKeys(unificationConstraint.substitution(), notInVariables),
+                        unificationConstraint.equalities(),
+                        leftHandSide.substitution());
 
         if (!leftHandSide.implies(rightHandSide, variables)) {
             return null;
         }
 
-        unificationConstraint.addAll(lookups);
-        unificationConstraint.addAll(constraint);
-        unificationConstraint.simplify();
+        unificationConstraint.addAllThenSimplify(lookups, constraint);
 
         return unificationConstraint;
     }
@@ -245,18 +238,21 @@ public class ConstrainedTerm extends JavaSymbolicObject {
 
         List<SymbolicConstraint> solutions = new ArrayList<SymbolicConstraint>();
         for (SymbolicConstraint candidate : unificationConstraint.getMultiConstraints()) {
-            if (SymbolicConstraint.TruthValue.FALSE == candidate.addAll(constrainedTerm.lookups)) continue;
-            if (SymbolicConstraint.TruthValue.FALSE == candidate.addAll(constrainedTerm.constraint)) continue;
-            if (SymbolicConstraint.TruthValue.FALSE == candidate.addAll(constraint)) continue;
+            if (SymbolicConstraint.TruthValue.FALSE ==
+                    candidate.addAllThenSimplify(constrainedTerm.lookups, constrainedTerm.constraint)) {
+                continue;
+            }
 
-            candidate.simplify();
-            if (candidate.isFalse()) {
+            boolean isMatching = candidate.isMatching(constrainedTerm.variableSet());
+
+            if (SymbolicConstraint.TruthValue.FALSE == candidate.addAllThenSimplify(constraint)) {
                 continue;
             }
 
             // TODO(AndreiS): find a better place for pattern expansion
-            candidate.expandPatterns(candidate, true);
-            candidate.simplify();
+            if (!isMatching) {
+                candidate.expandPatternsAndSimplify(true);
+            }
 
             if (Tool.instance() != Tool.KOMPILE) {
                 /*
@@ -291,7 +287,6 @@ public class ConstrainedTerm extends JavaSymbolicObject {
 
     @Override
     public int hashCode() {
-        // TODO(YilongL): I don't think ConstrainedTerm should derive Term
         hashCode = 1;
         hashCode = hashCode * Utils.HASH_PRIME + data.hashCode();
         return hashCode;

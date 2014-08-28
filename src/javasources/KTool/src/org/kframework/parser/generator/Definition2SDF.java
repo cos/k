@@ -139,7 +139,7 @@ public class Definition2SDF {
                     ProductionItem itm = items.get(i);
                     if (itm instanceof Terminal) {
                         Terminal t = (Terminal) itm;
-                        sdf.append(StringUtil.enquoteCString(t.getTerminal()) + " ");
+                        sdf.append(t.toString() + " ");
                     } else if (itm instanceof NonTerminal) {
                         NonTerminal srt = (NonTerminal) itm;
                         // if we are on the first or last place and this sort is not a list, just print the sort
@@ -166,10 +166,13 @@ public class Definition2SDF {
         for (NonTerminal s : psdfv.userSorts) {
             if (!s.getSort().isBaseSort()) {
                 sdf.append("     K CastTypeDz \"" + s.getName() + "\"    -> VariableDz    {cons(\"" + StringUtil.escapeSortName(s.getName()) + "1Cast\")}\n");
+                sdf.append("     K CastTypeDz \"" + s.getName() + "{\" TagListDz \"}\"    -> VariableDz    {cons(\"" + StringUtil.escapeSortName(s.getName()) + "1CastAttr\")}\n");
             }
         }
         sdf.append("     K CastTypeDz \"K\"        -> VariableDz    {cons(\"K1Cast\")}\n");
         sdf.append("     K CastTypeDz \"KItem\"    -> VariableDz    {cons(\"KItem1Cast\")}\n");
+        sdf.append("     K CastTypeDz \"K{\" TagListDz \"}\"        -> VariableDz    {cons(\"K1CastAttr\")}\n");
+        sdf.append("     K CastTypeDz \"KItem{\" TagListDz \"}\"    -> VariableDz    {cons(\"KItem1CastAttr\")}\n");
         for (NonTerminal s : psdfv.userSorts) {
             if (!s.getSort().isBaseSort()) {
                 sdf.append("     " + StringUtil.escapeSortName(s.getName()) + "DzVar   -> " + StringUtil.escapeSortName(s.getName()) + "\n");
@@ -245,16 +248,16 @@ public class Definition2SDF {
                 // reject all terminals that match the regular expression of the lexical production
                 if (p.containsAttribute("regex")) {
                     Pattern pat = Pattern.compile(p.getAttribute("regex"));
-                    for (String t : terminals.terminals) {
-                        Matcher m = pat.matcher(t);
+                    for (Terminal t : terminals.terminals) {
+                        Matcher m = pat.matcher(t.getTerminal());
                         if (m.matches())
-                            sdf.append("    " + StringUtil.enquoteCString(t) + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
+                            sdf.append("    " + t.toString() + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
                     }
                 } else {
                     // if there is no regex attribute, then do it the old fashioned way, but way more inefficient
                     // add rejects for all possible combinations
-                    for (String t : terminals.terminals) {
-                        sdf.append("    " + StringUtil.enquoteCString(t) + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
+                    for (Terminal t : terminals.terminals) {
+                        sdf.append("    " + t.toString() + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
                     }
                 }
             }

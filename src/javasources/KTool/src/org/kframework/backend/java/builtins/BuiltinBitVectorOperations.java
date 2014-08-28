@@ -4,7 +4,6 @@ package org.kframework.backend.java.builtins;
 import org.kframework.backend.java.kil.BuiltinList;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
-
 import java.util.List;
 
 
@@ -16,8 +15,6 @@ import java.util.List;
 @SuppressWarnings("unchecked")
 public final class BuiltinBitVectorOperations {
 
-    private BuiltinBitVectorOperations() { }
-
     public static BitVector construct(IntToken bitwidth, IntToken value, TermContext context) {
         try {
             return BitVector.of(value.bigIntegerValue(), bitwidth.intValue());
@@ -26,8 +23,16 @@ public final class BuiltinBitVectorOperations {
         }
     }
 
-    public static IntToken bitwidth(BitVector term, TermContext context) {
-        return IntToken.of(term.bitwidth());
+    public static IntToken bitwidth(Term term, TermContext context) {
+        if (term instanceof BitVector) {
+            return IntToken.of(((BitVector)term).bitwidth());
+        } else {
+            Integer bitwidth = BitVector.getBitwidth(term);
+            if (bitwidth == null) {
+                return null;
+            }
+            return IntToken.of(bitwidth);
+        }
     }
 
     public static BoolToken zero(BitVector term, TermContext context) {
@@ -280,7 +285,9 @@ public final class BuiltinBitVectorOperations {
             IntToken count,
             TermContext context) {
         if (bitwidth.intValue() > 0 && bitwidth.intValue() * count.intValue() <= term.bitwidth) {
-            return new BuiltinList(term.toDigits(bitwidth.intValue(), count.intValue()));
+            BuiltinList.Builder builder = BuiltinList.builder();
+            builder.addItems(term.toDigits(bitwidth.intValue(), count.intValue()));
+            return (BuiltinList) builder.build();
         } else {
             return null;
         }

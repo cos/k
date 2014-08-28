@@ -12,6 +12,7 @@ import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
 import org.kframework.kil.Production;
+import org.kframework.kil.loader.Context;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
@@ -47,6 +48,8 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
 
     private final boolean isSortPredicate;
 
+    private final String smtlib;
+
     private final Sort predicateSort;
 
     /**
@@ -61,16 +64,17 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
      */
     private final KItem listTerminator;
 
-    private KLabelConstant(String label, Definition definition) {
+    private KLabelConstant(String label, Context context) {
         this.label = label;
-        productions = definition != null ?
-                ImmutableList.<Production>copyOf(definition.context().productionsOf(label)) :
+        productions = context != null ?
+                ImmutableList.<Production>copyOf(context.productionsOf(label)) :
                 ImmutableList.<Production>of();
 
         // TODO(YilongL): urgent; how to detect KLabel clash?
 
         boolean isFunction = false;
         boolean isPattern = false;
+        String smtlib = null;
         if (!label.startsWith("is")) {
             predicateSort = null;
 
@@ -80,6 +84,7 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
                 isFunction = fstProd.containsAttribute(Attribute.FUNCTION.getKey())
                         || fstProd.containsAttribute(Attribute.PREDICATE.getKey());
                 isPattern = fstProd.containsAttribute(Attribute.PATTERN_KEY);
+                smtlib = fstProd.getAttribute(Attribute.SMTLIB_KEY);
             }
 
             while (iterator.hasNext()) {
@@ -99,6 +104,10 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
                         "Cannot determine if the KLabel " + label
                         + " is a pattern symbol because there are multiple productions associated with this KLabel: "
                         + productions;
+                assert smtlib == production.getAttribute(Attribute.SMTLIB_KEY) :
+                        "Cannot determine the smtlib attribute of the KLabel " + label
+                        + " because there are multiple productions associated with this KLabel: "
+                        + productions;
             }
         } else {
             /* a KLabel beginning with "is" represents a sort membership predicate */
@@ -108,14 +117,15 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
         this.isSortPredicate = predicateSort != null;
         this.isFunction = isFunction;
         this.isPattern = isPattern;
+        this.smtlib = smtlib;
 
-        this.listTerminator = buildListTerminator(definition);
+        this.listTerminator = buildListTerminator(context);
         this.isListLabel = listTerminator != null;
     }
 
-    private KItem buildListTerminator(Definition definition) {
-        if (!definition.context().listKLabels.get(label).isEmpty()) {
-            Production production = definition.context().listKLabels.get(label).iterator().next();
+    private KItem buildListTerminator(Context context) {
+        if (!context.listKLabels.get(label).isEmpty()) {
+            Production production = context.listKLabels.get(label).iterator().next();
             String separator = production.getListDecl().getSeparator();
             return new KItem(this, KList.EMPTY, Sort.SHARP_BOT.getUserListSort(separator), true);
         }
@@ -130,12 +140,12 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
      * @param label string representation of the KLabel; must not be '`' escaped;
      * @return AST term representation the the KLabel;
      */
-    public static KLabelConstant of(String label, Definition definition) {
+    public static KLabelConstant of(String label, Context context) {
         assert label != null;
 
         KLabelConstant kLabelConstant = cache.get(label);
         if (kLabelConstant == null) {
-            kLabelConstant = new KLabelConstant(label, definition);
+            kLabelConstant = new KLabelConstant(label, context);
             cache.put(label, kLabelConstant);
         }
         return kLabelConstant;
@@ -166,6 +176,10 @@ public class KLabelConstant extends KLabel implements MaximalSharing {
     @Override
     public boolean isPattern() {
         return isPattern;
+    }
+
+    public String smtlib() {
+        return smtlib;
     }
 
     /**

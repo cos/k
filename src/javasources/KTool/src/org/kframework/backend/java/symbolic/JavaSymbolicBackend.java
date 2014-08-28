@@ -1,12 +1,13 @@
 // Copyright (c) 2013-2014 K Team. All Rights Reserved.
 package org.kframework.backend.java.symbolic;
 
+import org.kframework.backend.Backends;
 import org.kframework.backend.BasicBackend;
 import org.kframework.backend.FirstStep;
 import org.kframework.backend.LastStep;
-import org.kframework.backend.java.indexing.IndexingAlgorithm;
-import org.kframework.backend.java.indexing.IndexingTable;
-import org.kframework.backend.java.indexing.pathIndex.PathIndex;
+import org.kframework.backend.java.compile.GenerateKRewriteMachineInstructions;
+import org.kframework.backend.java.indexing.RuleIndex;
+import org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer;
 import org.kframework.compile.FlattenModules;
 import org.kframework.compile.ResolveConfigurationAbstraction;
 import org.kframework.compile.checks.CheckConfigurationCells;
@@ -27,6 +28,7 @@ import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.Stopwatch;
 
 import com.google.inject.Inject;
+import com.google.inject.Provider;
 
 import java.io.File;
 
@@ -41,25 +43,27 @@ public class JavaSymbolicBackend extends BasicBackend {
     public static final String DEFINITION_FILENAME = "java_symbolic_definition.bin";
 
     private final BinaryLoader loader;
+    private final Provider<RuleIndex> index;
+    private final Provider<KILtoBackendJavaKILTransformer> transformer;
 
     @Inject
-    JavaSymbolicBackend(Stopwatch sw, Context context, BinaryLoader loader) {
+    JavaSymbolicBackend(
+            Stopwatch sw,
+            Context context,
+            BinaryLoader loader,
+            Provider<RuleIndex> index,
+            Provider<KILtoBackendJavaKILTransformer> transformer) {
         super(sw, context);
         this.loader = loader;
+        this.index = index;
+        this.transformer = transformer;
     }
 
     @Override
     public Definition lastStep(Definition javaDef) {
-        org.kframework.backend.java.kil.Definition definition =
-                new KILtoBackendJavaKILTransformer(context, true).transformDefinition(javaDef);
+        org.kframework.backend.java.kil.Definition definition = transformer.get().transformDefinition(javaDef);
 
-        if (options.experimental.ruleIndex == IndexingAlgorithm.RULE_TABLE) {
-            definition.setIndex(new IndexingTable(definition));
-        } else if (options.experimental.ruleIndex == IndexingAlgorithm.PATH) {
-            definition.setIndex(new PathIndex(definition));
-        }
-
-        assert definition.getIndex() != null;
+        definition.setIndex(index.get());
 
         loader.saveOrDie(new File(context.kompiled,
                 JavaSymbolicBackend.DEFINITION_FILENAME).toString(),
@@ -156,5 +160,20 @@ public class JavaSymbolicBackend extends BasicBackend {
         steps.add(new LastStep(this, context));
 
         return steps;
+    }
+
+    @Override
+    public boolean documentation() {
+        return false;
+    }
+
+    @Override
+    public boolean generatesDefinition() {
+        return true;
+    }
+
+    @Override
+    public String autoincludedFile() {
+        return Backends.AUTOINCLUDE_JAVA;
     }
 }

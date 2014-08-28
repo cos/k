@@ -141,6 +141,21 @@ public class KExceptionManager {
     }
 
     public void print() {
+        print(null);
+    }
+
+    public void print(Throwable t) {
+
+        if (t != null) {
+            if (!(t instanceof KEMException)) {
+                KException e = KException.criticalError("Failed to initialize application. "
+                        + "Please file a bug report at https://github.com/kframework/k/issues");
+                exceptions.add(e);
+            }
+            if (options.debug) {
+                t.printStackTrace();
+            }
+        }
         Collections.sort(exceptions, new Comparator<KException>() {
             @Override
             public int compare(KException arg0, KException arg1) {

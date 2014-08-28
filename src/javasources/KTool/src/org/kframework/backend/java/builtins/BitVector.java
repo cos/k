@@ -11,6 +11,8 @@ import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.backend.java.util.Utils;
 import org.kframework.kil.ASTNode;
+import org.kframework.kil.Attribute;
+import org.kframework.utils.general.GlobalSettings;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -208,6 +210,33 @@ public abstract class BitVector<T extends Number> extends Token {
         }
 
         return BitVector.of(value, bitwidth);
+    }
+
+    /**
+     * Get the bitwidth of a term of sort MInt assumed to have a bitwidth attribute.
+     * Throws an error if the term does not declare one.
+     */
+    public static int getBitwidthOrDie(ASTNode t) {
+        Integer bitwidth = getBitwidth(t);
+        if (bitwidth == null) {
+            GlobalSettings.kem.registerCriticalError("Expected machine integer variable to declare a bitwidth." +
+                    " For example, M:MInt{bitwidth(32)} for a 32-bit integer.");
+        }
+        return bitwidth;
+    }
+
+    public static Integer getBitwidth(ASTNode t) {
+        String bitwidth = t.getAttribute(Attribute.BITWIDTH_KEY);
+        if (bitwidth == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(bitwidth);
+        } catch (NumberFormatException e) {
+            GlobalSettings.kem.registerCriticalError("Expected variable attribute 'bitwidth' to " +
+                    "be an integer, found: " + t.getAttribute("bitwidth"), e);
+            throw new AssertionError("unreachable");
+        }
     }
 
 }

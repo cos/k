@@ -203,7 +203,7 @@ public class PatternMatcher extends AbstractMatcher {
                 assert lookupOrChoice instanceof DataStructureLookupOrChoice :
                     "one side of the equality should be an instance of DataStructureLookup or DataStructureChoice";
 
-                Term evalLookupOrChoice = evaluateLookupOrChoice(lookupOrChoice, crntSubst);
+                Term evalLookupOrChoice = evaluateLookupOrChoice(lookupOrChoice, crntSubst, context);
 
                 boolean resolved = false;
                 if (evalLookupOrChoice instanceof Bottom
@@ -220,7 +220,7 @@ public class PatternMatcher extends AbstractMatcher {
                         if (checkOrderedSortedCondition(variable, evalLookupOrChoice, context)) {
                             Term term = crntSubst.put(variable, evalLookupOrChoice);
                             resolved = term == null || BoolToken.TRUE.equals(
-                                    TermEquality.eq(term, evalLookupOrChoice, context));
+                                    new TermEquality().eq(term, evalLookupOrChoice, context));
                         }
                     } else {
                         // the non-lookup term is not a variable and thus requires further pattern matching
@@ -279,9 +279,6 @@ public class PatternMatcher extends AbstractMatcher {
         return results;
     }
 
-    private static final Stopwatch sw = new Stopwatch();
-    private static final Stopwatch sw2 = new Stopwatch();
-
     /**
      * Private helper method to substitute and evaluate a
      * {@link DataStructureLookupOrChoice} operation efficiently.
@@ -295,7 +292,7 @@ public class PatternMatcher extends AbstractMatcher {
      *            the substitution map
      * @return the evaluated data structure lookup or choice operation
      */
-    private static Term evaluateLookupOrChoice(Term lookupOrChoice, Map<Variable, Term> subst) {
+    private static Term evaluateLookupOrChoice(Term lookupOrChoice, Map<Variable, Term> subst, TermContext context) {
         Profiler.startTimer(Profiler.EVALUATE_LOOKUP_CHOICE_TIMER);
 
         Term evalLookupOrChoice = null;
@@ -307,8 +304,8 @@ public class PatternMatcher extends AbstractMatcher {
             }
             key = subst.get(lookup.key());
             Kind kind = lookupOrChoice.kind();
-            base = base == null ? lookup.base() : base;
-            key = key == null ? lookup.key() : key;
+            base = base == null ? lookup.base().copyOnShareSubstAndEval(subst, context) : base;
+            key = key == null ? lookup.key().copyOnShareSubstAndEval(subst, context) : key;
 
             evalLookupOrChoice = DataStructureLookupOrChoice.Util.of(lookup.type(), base, key, kind).evaluateLookup();
         } else {
@@ -661,8 +658,10 @@ public class PatternMatcher extends AbstractMatcher {
         CellCollection otherCellCollection = (CellCollection) pattern;
 
         if (cellCollection.hasFrame()) {
-            assert !termContext.definition().context().javaExecutionOptions.concreteExecution() :
-                "the subject term should be ground in concrete execution";
+        // TODO(dwightguth): put this assertion back in once this class is constructed by
+        // the injector
+//            assert !termContext.definition().context().javaExecutionOption/*s.concreteExecution() :
+//                "the subject term should be ground in concrete execution";*/
             if (!otherCellCollection.hasFrame()) {
                 fail(cellCollection, otherCellCollection);
             }
@@ -1056,11 +1055,11 @@ public class PatternMatcher extends AbstractMatcher {
     private void matchKCollection(KCollection kCollection, KCollection pattern) {
         assert kCollection.getClass().equals(pattern.getClass());
 
-        int length = pattern.size();
-        if (kCollection.size() >= length) {
+        int length = pattern.concreteSize();
+        if (kCollection.concreteSize() >= length) {
             if (pattern.hasFrame()) {
                 addSubstitution(pattern.frame(), kCollection.fragment(length));
-            } else if (kCollection.hasFrame() || kCollection.size() > length) {
+            } else if (kCollection.hasFrame() || kCollection.concreteSize() > length) {
                 fail(kCollection, pattern);
             }
 

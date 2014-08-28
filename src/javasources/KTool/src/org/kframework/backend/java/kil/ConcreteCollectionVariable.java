@@ -28,15 +28,11 @@ public class ConcreteCollectionVariable extends Variable {
             ConcreteCollectionVariable otherVariable = (ConcreteCollectionVariable) term;
             return concreteCollectionSize() == otherVariable.concreteCollectionSize();
         } else if (term instanceof Collection) {
-            if (term instanceof BuiltinList && ((BuiltinList) term).isUpdate()) {
-                return false;
-            }
-
             Collection collection = (Collection) term;
-            if (collection.hasFrame()) {
-                return collection.size() <= concreteSize;
+            if (!collection.isConcreteCollection()) {
+                return collection.concreteSize() <= concreteSize;
             } else {
-                return collection.size() == concreteSize;
+                return collection.concreteSize() == concreteSize;
             }
         } else {
             return false;
@@ -45,11 +41,13 @@ public class ConcreteCollectionVariable extends Variable {
 
     @Override
     public ConcreteCollectionVariable getFreshCopy() {
-        return new ConcreteCollectionVariable(
+        ConcreteCollectionVariable var = new ConcreteCollectionVariable(
                 Variable.getFreshVariable(sort()).name(),
                 sort(),
                 true,
                 concreteSize);
+        var.copyAttributesFrom(this);
+        return var;
     }
 
 }

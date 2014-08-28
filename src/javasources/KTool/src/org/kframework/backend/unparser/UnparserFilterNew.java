@@ -165,7 +165,12 @@ public class UnparserFilterNew extends NonCachingVisitor {
                 indenter.write(" ");
             }
         }
-        this.visitNode(prod.getAttributes());
+        if (!prod.getAttributes().isEmpty()) {
+            indenter.write(" ");
+            indenter.write("[");
+            this.visitNode(prod.getAttributes());
+            indenter.write("]");
+        }
         indenter.endLine();
         return postpare();
     }
@@ -214,8 +219,6 @@ public class UnparserFilterNew extends NonCachingVisitor {
     public Void visit(Attributes attributes, Void _) {
         prepare(attributes);
         if (!attributes.isEmpty()) {
-            indenter.write(" ");
-            indenter.write("[");
             Iterator<Attribute> iter = attributes.values().iterator();
             for (int i = 0; i < attributes.size(); ++i) {
                 this.visitNode(iter.next());
@@ -223,7 +226,6 @@ public class UnparserFilterNew extends NonCachingVisitor {
                     indenter.write(", ");
                 }
             }
-            indenter.write("]");
         }
         return postpare();
     }
@@ -369,6 +371,12 @@ public class UnparserFilterNew extends NonCachingVisitor {
         if (!variableList.contains(variable.getName())) {
             indenter.write(":" + variable.getSort());
             variableList.add(variable.getName());
+
+            if (variable.getAttributes().size() > 0) {
+                indenter.write("{");
+                this.visitNode(variable.getAttributes());
+                indenter.write("}");
+            }
         }
         return postpare();
     }
@@ -397,7 +405,12 @@ public class UnparserFilterNew extends NonCachingVisitor {
             indenter.write(" ensures ");
             this.visitNode(rule.getEnsures());
         }
-        this.visitNode(rule.getAttributes());
+        if (!rule.getAttributes().isEmpty()) {
+            indenter.write(" ");
+            indenter.write("[");
+            this.visitNode(rule.getAttributes());
+            indenter.write("]");
+        }
         indenter.endLine();
         indenter.endLine();
         return postpare();
@@ -532,17 +545,28 @@ public class UnparserFilterNew extends NonCachingVisitor {
             for (int i = 0; i < production.getItems().size(); ++i) {
                 ProductionItem productionItem = production.getItems().get(i);
                 if (!(productionItem instanceof Terminal)) {
-                    if(!(termCons.getContents().get(where) instanceof ListTerminator) || (! (outputMode == OutputMode.PRETTY || outputMode == OutputMode.NO_WRAP) && ! (outputMode == OutputMode.KORE))){
-                            this.visitNode(termCons.getContents().get(where++));
-                    } else {
-                        where++;
+                    Term subterm = termCons.getContents().get(where);
+                    if(!(subterm instanceof ListTerminator) || (! (outputMode == OutputMode.PRETTY || outputMode == OutputMode.NO_WRAP) && ! (outputMode == OutputMode.KORE))){
+                        if (subterm instanceof TermCons && !isDataStructure(termCons.getProduction()) && isDataStructure(((TermCons) subterm).getProduction())) {
+                            indenter.endLine();
+                            indenter.indent(TAB);
+                            this.visitNode(subterm);
+                            indenter.unindent();
+                        } else {
+                            this.visitNode(subterm);
+                        }
                     }
+                    where++;
                 } else {
                     indenter.write(((Terminal) productionItem).getTerminal());
                 }
                 // TODO(YilongL): not sure I can simply remove the following code
                 if (i != production.getItems().size() - 1) {
-                    indenter.write(" ");
+                    if (isDataStructure(production)) {
+                        indenter.endLine();
+                    } else {
+                        indenter.write(" ");
+                    }
                 }
             }
         }
@@ -552,6 +576,16 @@ public class UnparserFilterNew extends NonCachingVisitor {
             indenter.write(temp.get(1).getTerminal());
         }
         return null;
+    }
+
+    private boolean isDataStructure(Production production) {
+        DataStructureSort dsSort = context.dataStructureSortOf(production.getSort());
+        if (dsSort != null && dsSort.constructorLabel().equals(production.getKLabel())) {
+            //is a constructor of a data structure
+            //special case a new line between each item and indentation
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -700,7 +734,12 @@ public class UnparserFilterNew extends NonCachingVisitor {
             indenter.write(" ensures ");
             this.visitNode(context.getEnsures());
         }
-        this.visitNode(context.getAttributes());
+        if (!context.getAttributes().isEmpty()) {
+            indenter.write(" ");
+            indenter.write("[");
+            this.visitNode(context.getAttributes());
+            indenter.write("]");
+        }
         indenter.endLine();
         indenter.endLine();
         return postpare();
@@ -749,6 +788,11 @@ public class UnparserFilterNew extends NonCachingVisitor {
             indenter.write(":");
         }
         indenter.write(c.getSort().getName());
+        if (c.getAttributes().size() > 0) {
+            indenter.write("{");
+            this.visitNode(c.getAttributes());
+            indenter.write("}");
+        }
         return postpare();
     }
 

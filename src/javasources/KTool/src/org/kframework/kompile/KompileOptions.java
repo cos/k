@@ -6,31 +6,15 @@ import java.io.Serializable;
 import java.util.*;
 
 import org.apache.commons.io.FilenameUtils;
-import org.kframework.backend.coq.CoqBackend;
-import org.kframework.backend.html.HtmlBackend;
-import org.kframework.backend.java.indexing.IndexingAlgorithm;
-import org.kframework.backend.java.symbolic.JavaSymbolicBackend;
-import org.kframework.backend.java.symbolic.JavaSymbolicKRun;
-import org.kframework.backend.latex.DocumentationBackend;
-import org.kframework.backend.latex.LatexBackend;
-import org.kframework.backend.latex.PdfBackend;
-import org.kframework.backend.maude.KompileBackend;
-import org.kframework.backend.maude.krun.MaudeKRun;
-import org.kframework.backend.symbolic.SymbolicBackend;
-import org.kframework.backend.unparser.UnflattenBackend;
-import org.kframework.backend.unparser.UnflattenJavaBackend;
-import org.kframework.backend.unparser.UnparserBackend;
-import org.kframework.krun.api.KRun;
+import org.kframework.backend.Backends;
 import org.kframework.main.GlobalOptions;
 import org.kframework.utils.general.GlobalSettings;
-import org.kframework.utils.options.BaseEnumConverter;
 import org.kframework.utils.options.SMTOptions;
 import org.kframework.utils.options.StringListConverter;
 
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParametersDelegate;
 import com.google.inject.Inject;
-import com.google.inject.ProvidedBy;
 
 public final class KompileOptions implements Serializable {
 
@@ -39,56 +23,6 @@ public final class KompileOptions implements Serializable {
     //TODO(dwightguth): remove in Guice 4.0
     @Inject
     public KompileOptions(Void v) {}
-
-    public static enum Backend {
-        PDF(true, false, false, PdfBackend.class, null),
-        LATEX(true, false, false, LatexBackend.class, null),
-        DOC(true, false, false, DocumentationBackend.class, null),
-        HTML(true, false, false, HtmlBackend.class, null),
-        MAUDE(false, false, true, KompileBackend.class, MaudeKRun.class),
-        JAVA(false, true, true, JavaSymbolicBackend.class, JavaSymbolicKRun.class),
-        UNPARSE(false, false, false, UnparserBackend.class, null),
-        UNFLATTEN(false, false, false, UnflattenBackend.class, null),
-        UNFLATTEN_JAVA(false, true, false, UnflattenJavaBackend.class, null),
-        SYMBOLIC(false, false, true, SymbolicBackend.class, MaudeKRun.class),
-        COQ(false, true, false, CoqBackend.class, null);
-
-        private Backend(boolean documentation, boolean java, boolean generatesDefinition,
-                Class<? extends org.kframework.backend.Backend> backend,
-                Class<? extends KRun> krun) {
-            this.documentation = documentation;
-            this.isJava = java;
-            this.generatesDefinition = generatesDefinition;
-            this.backend = backend;
-            this.krun = krun;
-        }
-
-        private final boolean documentation;
-        private final boolean isJava;
-        private final boolean generatesDefinition;
-        private final Class<? extends org.kframework.backend.Backend> backend;
-        private final Class<? extends KRun> krun;
-
-        public boolean documentation() {
-            return documentation;
-        }
-
-        public boolean java() {
-            return isJava;
-        }
-
-        public boolean generatesDefinition() {
-            return generatesDefinition;
-        }
-
-        public Class<? extends org.kframework.backend.Backend> backend() {
-            return backend;
-        }
-
-        public Class<? extends KRun> krun() {
-            return krun;
-        }
-    }
 
     @Parameter(description="<file>")
     private List<String> parameters;
@@ -110,16 +44,8 @@ public final class KompileOptions implements Serializable {
     @Parameter(names={"--directory", "-d"}, description="Path to the directory in which the output resides. An output can be either a kompiled K definition or a document which depends on the type of backend. The default is the current directory.")
     public File directory = new File(".");
 
-    @Parameter(names="--backend", converter=BackendConverter.class, description="Choose a backend. <backend> is one of [pdf|latex|html|maude|java|unparse|symbolic]. Each of [pdf|latex|html] generates a document from the given K definition. Either of [maude|java] creates the kompiled K definition. 'unparse' generates an unparsed version of the given K definition. 'symbolic' generates symbolic semantics. Experimental: 'doc' generates a .tex document, omitting rules unless specified.")
-    public Backend backend = Backend.MAUDE;
-
-    public static class BackendConverter extends BaseEnumConverter<Backend> {
-
-        @Override
-        public Class<Backend> enumClass() {
-            return Backend.class;
-        }
-    }
+    @Parameter(names="--backend", description="Choose a backend. <backend> is one of [pdf|latex|html|maude|java|unparse|symbolic]. Each of [pdf|latex|html] generates a document from the given K definition. Either of [maude|java] creates the kompiled K definition. 'unparse' generates an unparsed version of the given K definition. 'symbolic' generates symbolic semantics. Experimental: 'doc' generates a .tex document, omitting rules unless specified.")
+    public String backend = Backends.MAUDE;
 
     @Parameter(names="--doc-style", description="Specify a style option for the package 'k.sty' (when '--backend [pdf|latex]' is used) or path to an alternative .css file (when '--backend html' is used).")
     private String docStyle;
@@ -127,7 +53,7 @@ public final class KompileOptions implements Serializable {
     private static final String DEFAULT_DOC_STYLE = "poster,style=bubble";
 
     public String docStyle() {
-        if (backend == Backend.HTML) {
+        if (backend == Backends.HTML) {
             if (docStyle == null) {
                 return "k-definition.css";
             }
@@ -213,15 +139,7 @@ public final class KompileOptions implements Serializable {
         @Parameter(names="--documentation", listConverter=StringListConverter.class, description="<string> is a comma-separated list of tags designating rules to be included in the file generated with --backend=doc")
         public List<String> documentation = Collections.singletonList("documentation");
 
-        @Parameter(names="--rule-index", converter=RuleIndexConveter.class, description="Choose a technique for indexing the rules. <rule-index> is one of [table|path]. (Default: table). This only has effect with '--backend java'.")
-        public IndexingAlgorithm ruleIndex = IndexingAlgorithm.RULE_TABLE;
-
-        public static class RuleIndexConveter extends BaseEnumConverter<IndexingAlgorithm> {
-
-            @Override
-            public Class<IndexingAlgorithm> enumClass() {
-                return IndexingAlgorithm.class;
-            }
-        }
+        @Parameter(names="--legacy-kast", description="Compile with settings based on the old KAST structure")
+        public boolean legacyKast = false;
     }
 }

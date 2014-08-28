@@ -9,6 +9,7 @@ import org.kframework.backend.java.builtins.FloatToken;
 import org.kframework.backend.java.builtins.IntToken;
 import org.kframework.backend.java.builtins.StringToken;
 import org.kframework.backend.java.builtins.UninterpretedToken;
+import org.kframework.backend.java.indexing.IndexingTable;
 import org.kframework.backend.java.kil.BuiltinList;
 import org.kframework.backend.java.kil.BuiltinMap;
 import org.kframework.backend.java.kil.BuiltinMgu;
@@ -28,6 +29,7 @@ import org.kframework.backend.java.kil.KList;
 import org.kframework.backend.java.kil.KSequence;
 import org.kframework.backend.java.kil.Kind;
 import org.kframework.backend.java.kil.ListLookup;
+import org.kframework.backend.java.kil.ListUpdate;
 import org.kframework.backend.java.kil.MapKeyChoice;
 import org.kframework.backend.java.kil.MapLookup;
 import org.kframework.backend.java.kil.MapUpdate;
@@ -64,11 +66,11 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import com.google.inject.Inject;
 
 
 /**
@@ -79,7 +81,6 @@ import com.google.common.collect.Multimap;
 public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
 
     private boolean freshRules;
-    private Definition definition = null;
 
     /**
      * Maps variables representing concrete collections to their sizes. This
@@ -91,52 +92,43 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
      */
     private Map<org.kframework.kil.Variable, Integer> concreteCollectionSize
             = Collections.emptyMap();
-    private GlobalContext globalContext;
+    private final GlobalContext globalContext;
+    private final IndexingTable.Data indexingData;
 
-    public KILtoBackendJavaKILTransformer(Context context) {
+    @Inject
+    public KILtoBackendJavaKILTransformer(
+            Context context,
+            GlobalContext globalContext,
+            @FreshRules boolean freshRules,
+            IndexingTable.Data data) {
         super("Transform KIL into java backend KIL", context);
-        freshRules = false;
-    }
-
-    public KILtoBackendJavaKILTransformer(Context context, boolean freshRules) {
-        this(context);
         this.freshRules = freshRules;
+        this.globalContext = globalContext;
+        this.indexingData = data;
     }
 
     public Definition transformDefinition(org.kframework.kil.Definition node) {
         Definition transformedDef = (Definition) this.visitNode(node);
-        GlobalContext transformedDefGlobalContext = new GlobalContext(transformedDef, null);
+        globalContext.setDefinition(transformedDef);
 
-        Definition expandedDefinition = new MacroExpander(TermContext.of(transformedDefGlobalContext)).processDefinition();
-        return evaluateDefinition(new GlobalContext(expandedDefinition, null));
+        Definition expandedDefinition = new MacroExpander(TermContext.of(globalContext)).processDefinition();
+        globalContext.setDefinition(expandedDefinition);
+
+        Definition evaluatedDefinition = evaluateDefinition(globalContext);
+        globalContext.setDefinition(evaluatedDefinition);
+        return evaluatedDefinition;
     }
 
-    public Rule transformRule(org.kframework.kil.Rule node, Definition definition) {
-        this.definition = definition;
-        this.globalContext = new GlobalContext(definition, null);
-
+    public Rule transformRule(org.kframework.kil.Rule node) {
         Rule rule = null;
-        try {
-            rule = new MacroExpander(TermContext.of(globalContext)).processRule((Rule) this.visitNode(node));
-        } finally {
-            this.definition = null;
-            this.globalContext = null;
-        }
+        rule = new MacroExpander(TermContext.of(globalContext)).processRule((Rule) this.visitNode(node));
 
         return rule;
     }
 
     public Term transformTerm(org.kframework.kil.Term node, Definition definition) {
-        this.definition = definition;
-        this.globalContext = new GlobalContext(definition, null);
-
         Term term = null;
-        try {
-            term = new MacroExpander(TermContext.of(globalContext)).processTerm((Term) this.visitNode(node));
-        } finally {
-            this.definition = null;
-            this.globalContext = null;
-        }
+        term = new MacroExpander(TermContext.of(globalContext)).processTerm((Term) this.visitNode(node));
 
         return term;
     }
@@ -156,7 +148,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                         ((FloatBuiltin) node.getLabel()).exponent());
             } else if (node.getLabel() instanceof GenericToken) {
                 return UninterpretedToken.of(
-                        ((GenericToken) node.getLabel()).tokenSort().toBackendJava(),
+                        Sort.of(((GenericToken) node.getLabel()).tokenSort()),
                         ((GenericToken) node.getLabel()).value());
             } else {
                 assert false : "unsupported Token " + node.getLabel();
@@ -173,12 +165,12 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
 
     @Override
     public ASTNode visit(org.kframework.kil.KItemProjection node, Void _)  {
-        return new KItemProjection(Kind.of(node.projectedKind().toBackendJava()), (Term) this.visitNode(node.getTerm()));
+        return new KItemProjection(Kind.of(Sort.of(node.projectedKind())), (Term) this.visitNode(node.getTerm()));
     }
 
     @Override
     public ASTNode visit(org.kframework.kil.KLabelConstant node, Void _)  {
-        return KLabelConstant.of(node.getLabel(), definition);
+        return KLabelConstant.of(node.getLabel(), context);
     }
 
     @Override
@@ -278,8 +270,8 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                 return new Cell<KList>(node.getLabel(), (KList) content);
             } else if (content instanceof BuiltinList) {
                 return new Cell<BuiltinList>(node.getLabel(), (BuiltinList) content);
-//            } else if (content instanceof ListUpdate) {
-//                return new Cell<ListUpdate>(node.getLabel(), (ListUpdate) content);
+            } else if (content instanceof ListUpdate) {
+                return new Cell<ListUpdate>(node.getLabel(), (ListUpdate) content);
             } else if (content instanceof BuiltinSet) {
                 return new Cell<BuiltinSet>(node.getLabel(), (BuiltinSet) content);
             } else if (content instanceof SetUpdate) {
@@ -328,55 +320,17 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
 
     @Override
     public ASTNode visit(org.kframework.kil.ListBuiltin node, Void _)  {
-        ArrayList<Term> elementsLeft = new ArrayList<Term>(node.elementsLeft().size());
-        for (org.kframework.kil.Term entry : node.elementsLeft()) {
-            Term newEntry = (Term) this.visitNode(entry);
-            elementsLeft.add(newEntry);
+        BuiltinList.Builder builder = BuiltinList.builder();
+        for (org.kframework.kil.Term element : node.elementsLeft()) {
+            builder.addItem((Term) this.visitNode(element));
         }
-
-        ArrayList<Term> elementsRight = new ArrayList<Term>(node.elementsRight().size());
-        for (org.kframework.kil.Term entry : node.elementsRight()) {
-            Term newEntry = (Term) this.visitNode(entry);
-            elementsRight.add(newEntry);
-        }
-
-        ArrayList<Term> baseTerms = new ArrayList<>(node.baseTerms().size());
         for (org.kframework.kil.Term term : node.baseTerms()) {
-            baseTerms.add((Term) this.visitNode(term));
+            builder.concatenate((Term) this.visitNode(term));
         }
-
-        Term base = null;
-        if (node.hasViewBase()) {
-            base = (Variable) this.visitNode(node.viewBase());
-        } else {
-            if (!node.baseTerms().isEmpty()) {
-                if (node.baseTerms().size() == 1
-                        && !( this.visitNode(node.baseTerms().iterator().next()) instanceof KItem)) {
-                    base = (Term) this.visitNode(node.baseTerms().iterator().next());
-                } else {
-                    Term result = BuiltinList.of(
-                            null,
-                            0,
-                            0,
-                            elementsLeft,
-                            new ArrayList<Term>());
-                    baseTerms.add(BuiltinList.of(
-                            null,
-                            0,
-                            0,
-                            new ArrayList<Term>(),
-                            elementsRight));
-                    for (Term baseTerm : baseTerms) {
-                        result = KItem.of(
-                                KLabelConstant.of(DataStructureSort.DEFAULT_LIST_LABEL, definition),
-                                new KList(ImmutableList.of(result, baseTerm)),
-                                TermContext.of(globalContext));
-                    }
-                    return result;
-                }
-            }
+        for (org.kframework.kil.Term element : node.elementsRight()) {
+            builder.addItem((Term) this.visitNode(element));
         }
-        return BuiltinList.of(base, 0, 0, elementsLeft, elementsRight);
+        return builder.build();
     }
 
     @Override
@@ -410,8 +364,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
     public ASTNode visit(org.kframework.kil.ListUpdate node, Void _)  {
         Variable base = (Variable) this.visitNode(node.base());
 
-        return BuiltinList.of(base, node.removeLeft().size(), node.removeRight().size(),
-                Collections.<Term>emptyList(), Collections.<Term>emptyList());
+        return new ListUpdate(base, node.removeLeft().size(), node.removeRight().size());
     }
 
     @Override
@@ -484,7 +437,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
             }
         }
 
-        return new Variable(name, node.getSort().toBackendJava());
+        return new Variable(name, Sort.of(node.getSort()));
     }
 
     @Override
@@ -590,7 +543,9 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                 node.getCellsToCopy(),
                 node.getInstructions(),
                 node.getAttributes(),
-                definition);
+                node.getLocation(),
+                node.getSource(),
+                globalContext.getDefinition());
 
         if (freshRules) {
             return rule.getFreshRule(TermContext.of(globalContext));
@@ -612,9 +567,8 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
 
     @Override
     public ASTNode visit(org.kframework.kil.Definition node, Void _) {
-        Definition definition = new Definition(context);
-        this.definition = definition;
-        this.globalContext = new GlobalContext(definition, null);
+        Definition definition = new Definition(context, indexingData);
+        globalContext.setDefinition(definition);
 
         Module singletonModule = node.getSingletonModule();
 
@@ -627,18 +581,16 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
         }
 
         for (String kLabelName : singletonModule.getModuleKLabels()) {
-            definition.addKLabel(KLabelConstant.of(kLabelName, definition));
+            definition.addKLabel(KLabelConstant.of(kLabelName, context));
         }
 
         /* collect the productions which have the attributes strict and seqstrict */
         Set<Production> productions = singletonModule.getSyntaxByTag("strict", context);
         productions.addAll(singletonModule.getSyntaxByTag("seqstrict", context));
         for (Production production : productions) {
-            definition.addFrozenKLabel(KLabelConstant.of(production.getKLabel(), definition));
+            definition.addFrozenKLabel(KLabelConstant.of(production.getKLabel(), context));
         }
 
-        this.definition = null;
-        this.globalContext = null;
         return definition;
     }
 
@@ -650,7 +602,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
      * @return the partially evaluated definition
      */
     private static Definition evaluateDefinition(GlobalContext globalContext) {
-        Definition definition = globalContext.def;
+        Definition definition = globalContext.getDefinition();
         /* replace the unevaluated rules defining functions with their partially evaluated counterparts */
         ArrayList<Rule> partiallyEvaluatedRules = new ArrayList<>();
         /* iterate until a fixpoint is reached, because the evaluation with functions uses Term#substituteAndEvalaute */
@@ -747,7 +699,9 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                 rule.cellsToCopy(),
                 rule.instructions(),
                 rule.getAttributes(),
-                globalContext.def);
+                rule.getLocation(),
+                rule.getSource(),
+                globalContext.getDefinition());
         return newRule.equals(rule) ? origRule : newRule;
     }
 

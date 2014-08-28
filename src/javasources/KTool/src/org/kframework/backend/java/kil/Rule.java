@@ -24,14 +24,13 @@ import org.kframework.compile.checks.CheckVariables;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
 import org.kframework.kil.Attributes;
+import org.kframework.kil.Location;
+import org.kframework.kil.Source;
 import org.kframework.kil.loader.Constants;
-import org.kframework.utils.general.GlobalSettings;
-
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
 
@@ -111,6 +110,8 @@ public class Rule extends JavaSymbolicObject {
             Set<String> cellsToCopy,
             List<Instruction> instructions,
             Attributes attributes,
+            Location location,
+            Source source,
             Definition definition) {
         this.label = label;
         this.leftHandSide = leftHandSide;
@@ -121,16 +122,22 @@ public class Rule extends JavaSymbolicObject {
         this.lookups = lookups;
 
         super.setAttributes(attributes);
+        setLocation(location);
+        setSource(source);
 
         if (attributes.containsKey(Constants.STDIN)
                 || attributes.containsKey(Constants.STDOUT)
                 || attributes.containsKey(Constants.STDERR)) {
             Variable listVar = (Variable) lhsOfReadCells.values().iterator().next();
-            BuiltinList streamList = listVar instanceof ConcreteCollectionVariable ?
-                    new BuiltinList() : new BuiltinList(listVar);
-            for (Equality eq : Lists.reverse(lookups.equalities())) {
-                streamList.addLeft(eq.rightHandSide());
+            BuiltinList.Builder streamListBuilder = BuiltinList.builder();
+            for (Equality eq : lookups.equalities()) {
+                streamListBuilder.addItem(eq.rightHandSide());
             }
+            if (!(listVar instanceof ConcreteCollectionVariable)) {
+                streamListBuilder.concatenate(Variable.getFreshVariable(Sort.LIST));
+            }
+
+            Term streamList = streamListBuilder.build();
             this.indexingPair = attributes.containsKey(Constants.STDIN) ?
                     IndexingPair.getInstreamIndexingPair(streamList, definition) :
                     IndexingPair.getOutstreamIndexingPair(streamList, definition);
@@ -144,7 +151,7 @@ public class Rule extends JavaSymbolicObject {
             if (indexingPairs.size() == 1) {
                 this.indexingPair = indexingPairs.iterator().next();
             } else {
-                this.indexingPair = IndexingPair.TOP;
+                this.indexingPair = definition.indexingData.TOP_INDEXING_PAIR;
             }
         }
 
@@ -179,7 +186,7 @@ public class Rule extends JavaSymbolicObject {
 
             if (leftHandSide instanceof KItem
                     && rightHandSide.equals(BoolToken.TRUE)
-                    && ((KList) ((KItem) leftHandSide).kList()).size() == 1) {
+                    && ((KList) ((KItem) leftHandSide).kList()).concreteSize() == 1) {
                 Term arg = ((KList) ((KItem) leftHandSide).kList()).get(0);
                 sortPredArg = arg instanceof KItem ? (KItem) arg : null;
             } else {
@@ -470,6 +477,7 @@ public class Rule extends JavaSymbolicObject {
         if (ensures != null) {
             string += " ensures " + ensures;
         }
+        string += " [" + "Location: " + getLocation() + ", " + getSource() + "]";
         return string;
     }
 

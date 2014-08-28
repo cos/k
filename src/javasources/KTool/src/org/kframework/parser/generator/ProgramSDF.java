@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.kframework.backend.Backends;
 import org.kframework.compile.transformers.AddSymbolicK;
 import org.kframework.kil.Definition;
 import org.kframework.kil.Lexical;
@@ -20,7 +21,6 @@ import org.kframework.kil.Sort;
 import org.kframework.kil.Terminal;
 import org.kframework.kil.UserList;
 import org.kframework.kil.loader.Context;
-import org.kframework.kompile.KompileOptions.Backend;
 import org.kframework.parser.concrete2.KSyntax2GrammarStatesFilter;
 import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.StringUtil;
@@ -100,7 +100,7 @@ public class ProgramSDF {
                     ProductionItem itm = items.get(i);
                     if (itm instanceof Terminal) {
                         Terminal t = (Terminal) itm;
-                        sdf.append(StringUtil.enquoteCString(t.getTerminal()) + " ");
+                        sdf.append(t.toString() + " ");
                     } else if (itm instanceof NonTerminal) {
                         NonTerminal srt = (NonTerminal) itm;
                         // if we are on the first or last place and this sort is not a list, just print the sort
@@ -145,7 +145,8 @@ public class ProgramSDF {
                 sdf.append("    " + StringUtil.escapeSortName(s) + "        -> K\n");
         }
 
-        if (context.kompileOptions.backend == Backend.SYMBOLIC) {
+        //TODO(dwightguth): remove for modularization
+        if (context.kompileOptions.backend.equals(Backends.SYMBOLIC)) {
             sdf.append("\ncontext-free syntax\n");
             sdf.append("    DzId    -> UnitDz\n");
             sdf.append("    DzBool    -> UnitDz\n");
@@ -169,9 +170,9 @@ public class ProgramSDF {
 
         sdf.append("\n\n");
 
-        for (String t : ctv.terminals) {
-            if (t.matches("[a-zA-Z\\_][a-zA-Z0-9\\_]*")) {
-                sdf.append("    " + StringUtil.enquoteCString(t) + " -> IdDz {reject}\n");
+        for (Terminal t : ctv.terminals) {
+            if (t.getTerminal().matches("[a-zA-Z\\_][a-zA-Z0-9\\_]*")) {
+                sdf.append("    " + t.toString() + " -> IdDz {reject}\n");
             }
         }
 
@@ -195,16 +196,16 @@ public class ProgramSDF {
                 // reject all terminals that match the regular expression of the lexical production
                 if (p.containsAttribute("regex")) {
                     Pattern pat = Pattern.compile(p.getAttribute("regex"));
-                    for (String t : ctv.terminals) {
-                        Matcher m = pat.matcher(t);
+                    for (Terminal t : ctv.terminals) {
+                        Matcher m = pat.matcher(t.getTerminal());
                         if (m.matches())
-                            sdf.append("    " + StringUtil.enquoteCString(t) + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
+                            sdf.append("    " + t.toString() + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
                     }
                 } else {
                     // if there is no regex attribute, then do it the old fashioned way, but way more inefficient
                     // add rejects for all possible combinations
-                    for (String t : ctv.terminals) {
-                        sdf.append("    " + StringUtil.enquoteCString(t) + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
+                    for (Terminal t : ctv.terminals) {
+                        sdf.append("    " + t.toString() + " -> " + StringUtil.escapeSortName(p.getSort().getName()) + "Dz {reject}\n");
                     }
                 }
             }

@@ -16,20 +16,15 @@ import org.kframework.backend.java.indexing.Index;
 import org.kframework.backend.java.indexing.IndexingPair;
 import org.kframework.backend.java.indexing.RuleIndex;
 import org.kframework.backend.java.indexing.IndexingTable;
+import org.kframework.backend.java.kil.*;
 import org.kframework.utils.general.IndexingStatistics;
-import org.kframework.backend.java.kil.Cell;
-import org.kframework.backend.java.kil.CellCollection;
-import org.kframework.backend.java.kil.ConstrainedTerm;
-import org.kframework.backend.java.kil.Definition;
-import org.kframework.backend.java.kil.Rule;
-import org.kframework.backend.java.kil.Term;
-import org.kframework.backend.java.kil.TermContext;
-import org.kframework.backend.java.kil.Variable;
 import org.kframework.backend.java.strategies.TransitionCompositeStrategy;
+import org.kframework.kompile.KompileOptions;
 import org.kframework.krun.api.SearchType;
 import org.kframework.krun.api.io.FileSystem;
 
 import com.google.common.base.Stopwatch;
+import com.google.inject.Inject;
 
 /**
  *
@@ -54,12 +49,13 @@ public class SymbolicRewriter {
      * Liyi Li : add simulation rules in the constructor, and allow user to input label [alphaRule] as
      * the indication that the rule will be used as simulation
      */
-    public SymbolicRewriter(Definition definition) {
+    @Inject
+    public SymbolicRewriter(Definition definition, KompileOptions kompileOptions, JavaExecutionOptions javaOptions) {
         this.definition = definition;
-        this.indexingStats = definition.context().javaExecutionOptions.indexingStats;
+        this.indexingStats = javaOptions.indexingStats;
         ruleIndex = definition.getIndex();
 
-        this.strategy = new TransitionCompositeStrategy(definition.context().kompileOptions.transition);
+        this.strategy = new TransitionCompositeStrategy(kompileOptions.transition);
     }
 
     public ConstrainedTerm rewrite(ConstrainedTerm constrainedTerm, int bound) {
@@ -413,7 +409,7 @@ public class SymbolicRewriter {
             if (constraint == null) {
                 continue;
             }
-            constraint.addAll(rule.ensures());
+            constraint.addAllThenSimplify(rule.ensures());
 
             /* rename rule variables in the constraints */
             Map<Variable, Variable> freshSubstitution = constraint.rename(rule.variableSet());
@@ -427,6 +423,10 @@ public class SymbolicRewriter {
             result = result.evaluate(constrainedTerm.termContext());
             /* eliminate anonymous variables */
             constraint.eliminateAnonymousVariables(constrainedTerm.variableSet());
+
+            // TODO(AndreiS): move these some other place
+            constraint.expandPatternsAndSimplify(true);
+            result = result.expandPatterns(constraint, true, constrainedTerm.termContext());
 
             /* return first solution */
             return new ConstrainedTerm(result, constraint, constrainedTerm.termContext());
@@ -639,10 +639,19 @@ public class SymbolicRewriter {
         List<ConstrainedTerm> queue = new ArrayList<ConstrainedTerm>();
         List<ConstrainedTerm> nextQueue = new ArrayList<ConstrainedTerm>();
 
+        initialTerm = new ConstrainedTerm(
+                initialTerm.term().expandPatterns(
+                        initialTerm.constraint(),
+                        true,
+                        initialTerm.termContext()),
+                initialTerm.constraint(),
+                initialTerm.termContext());
+
         visited.add(initialTerm);
         queue.add(initialTerm);
         boolean guarded = false;
         while (!queue.isEmpty()) {
+            step++;
             for (ConstrainedTerm term : queue) {
                 if (term.implies(targetTerm)) {
                     continue;
@@ -704,6 +713,10 @@ public class SymbolicRewriter {
         }
 
         return proofResults;
+    }
+
+    public Definition getDefinition() {
+        return definition;
     }
 
 }

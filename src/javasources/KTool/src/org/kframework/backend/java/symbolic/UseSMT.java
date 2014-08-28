@@ -1,18 +1,16 @@
 // Copyright (c) 2013-2014 K Team. All Rights Reserved.
 package org.kframework.backend.java.symbolic;
 
+import org.kframework.backend.java.builtins.BoolToken;
 import org.kframework.backend.java.builtins.IntToken;
 import org.kframework.backend.java.kil.BuiltinMap;
 import org.kframework.backend.java.kil.Sort;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.kil.Variable;
-import org.kframework.backend.java.kil.Z3Term;
 import org.kframework.utils.options.SMTSolver;
 
 import java.io.Serializable;
-import java.util.Collections;
-
 import com.microsoft.z3.BoolExpr;
 import com.microsoft.z3.Expr;
 import com.microsoft.z3.FuncDecl;
@@ -31,24 +29,29 @@ public class UseSMT implements Serializable {
 
         BuiltinMap.Builder resultBuilder = BuiltinMap.builder();
         try {
+            SymbolicConstraint constraint = new SymbolicConstraint(termContext);
+            constraint.add(term, BoolToken.TRUE);
             com.microsoft.z3.Context context = new com.microsoft.z3.Context();
-            KILtoZ3 transformer = new KILtoZ3(Collections.<Variable>emptySet(), context);
-            Solver solver = context.MkSolver();
+            Solver solver = context.mkSolver();
+            BoolExpr query = context.parseSMTLIB2String(
+                    KILtoSMTLib.translateConstraint(constraint),
+                    null,
+                    null,
+                    null,
+                    null);
+            solver.add(query);
 
-            BoolExpr query = (BoolExpr) ((Z3Term) term.accept(transformer)).expression();
-            solver.Assert(query);
 
+            if(solver.check() == Status.SATISFIABLE){
 
-            if(solver.Check() == Status.SATISFIABLE){
-
-                Model model = solver.Model();
-                FuncDecl[] consts = model.ConstDecls();
+                Model model = solver.getModel();
+                FuncDecl[] consts = model.getConstDecls();
 
                 for(int i=0 ; i < consts.length; ++i){
 
-                    Expr resultFrg = model.ConstInterp(consts[i]);
+                    Expr resultFrg = model.getConstInterp(consts[i]);
 
-                    Variable akey = new Variable(consts[i].Name().toString(), Sort.of(consts[i].Range().toString()));
+                    Variable akey = new Variable(consts[i].getName().toString(), Sort.of(consts[i].getRange().toString()));
 
                     IntToken avalue = IntToken.of(Integer.parseInt(resultFrg.toString()));
 
@@ -57,7 +60,7 @@ public class UseSMT implements Serializable {
 
 
             }
-            context.Dispose();
+            context.dispose();
         } catch (Z3Exception e) {
             e.printStackTrace();
         } catch (UnsupportedOperationException e) {

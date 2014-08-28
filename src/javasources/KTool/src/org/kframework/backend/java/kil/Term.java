@@ -6,7 +6,6 @@ import org.kframework.backend.java.indexing.IndexingPair;
 import org.kframework.backend.java.symbolic.BottomUpVisitor;
 import org.kframework.backend.java.symbolic.CopyOnShareSubstAndEvalTransformer;
 import org.kframework.backend.java.symbolic.Evaluator;
-import org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer;
 import org.kframework.backend.java.symbolic.Matchable;
 import org.kframework.backend.java.symbolic.PatternExpander;
 import org.kframework.backend.java.symbolic.SubstituteAndEvaluateTransformer;
@@ -15,9 +14,8 @@ import org.kframework.backend.java.symbolic.Transformable;
 import org.kframework.backend.java.symbolic.Unifiable;
 import org.kframework.backend.java.util.Utils;
 import org.kframework.kil.loader.Constants;
-import org.kframework.utils.general.IndexingStatistics;
-
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,25 +37,6 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
 
     protected Term(Kind kind) {
         this.kind = kind;
-    }
-
-    /**
-     * Translates a term from the generic KIL representation ({@link org.kframework.kil.Term}) to
-     * Java Rewrite Engine internal representation ({@link org.kframework.backend.java.kil.Term}).
-     */
-    public static Term of(org.kframework.kil.Term kilTerm, Definition definition) {
-        if (definition.context().javaExecutionOptions.indexingStats){
-            IndexingStatistics.kilTransformationStopWatch.start();
-        }
-
-        KILtoBackendJavaKILTransformer transformer
-                = new KILtoBackendJavaKILTransformer(definition.context());
-        Term term = transformer.transformTerm(kilTerm, definition);
-
-        if (definition.context().javaExecutionOptions.indexingStats){
-            IndexingStatistics.kilTransformationStopWatch.stop();
-        }
-        return term;
     }
 
     /**
@@ -96,13 +75,13 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
                     Term instream = cell.getContent();
                     instreamIndexingPairs.add(IndexingPair.getInstreamIndexingPair(instream, definition));
                     if (instream instanceof BuiltinList) {
-                        maxInputBufLen.setValue(Math.max(maxInputBufLen.intValue(), ((BuiltinList) instream).size()));
+                        maxInputBufLen.setValue(Math.max(maxInputBufLen.intValue(), ((BuiltinList) instream).concreteSize()));
                     }
                 } else if (Constants.STDOUT.equals(streamCellAttr) || Constants.STDERR.equals(streamCellAttr)) {
                     Term outstream = cell.getContent();
                     outstreamIndexingPairs.add(IndexingPair.getOutstreamIndexingPair(outstream, definition));
                     if (outstream instanceof BuiltinList) {
-                        maxOutputBufLen.setValue(Math.max(maxOutputBufLen.intValue(), ((BuiltinList) outstream).size()));
+                        maxOutputBufLen.setValue(Math.max(maxOutputBufLen.intValue(), ((BuiltinList) outstream).concreteSize()));
                     }
                 } else if (cell.contentKind() == Kind.CELL_COLLECTION) {
                     super.visit(cell);
@@ -257,6 +236,36 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
         return (Term) this.accept(transformer);
     }
 
+    /**
+     * Similar to {@link Term#copyOnShareSubstAndEval(Map, Set, TermContext)}
+     * except the empty reusable variable set.
+     *
+     * @see {@link Term#copyOnShareSubstAndEval(Map, Set, TermContext)}
+     */
+    public Term copyOnShareSubstAndEval(Map<Variable, ? extends Term> substitution, TermContext context) {
+        return copyOnShareSubstAndEval(substitution, Collections.<Variable>emptySet(), context);
+    }
+
+    /**
+     * Returns a list containing the contents of each occurrence of a cell with the given name.
+     *
+     * Warning: this is slow!
+     * TODO(YilongL): improve performance when better indexing is available
+     */
+    public List<Term> getCellContentsByName(final String cellName) {
+        final List<Term> contents = new ArrayList<>();
+        accept(new BottomUpVisitor() {
+            @Override
+            public void visit(Cell cell) {
+                super.visit(cell);
+                if (cell.getLabel().equals(cellName)) {
+                    contents.add(cell.getContent());
+                }
+            }
+        });
+        return contents;
+    }
+
      /**
      * Returns a new {@code Term} instance obtained from this term by substituting variable with
      * term.
@@ -266,8 +275,8 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
         return (Term) super.substituteWithBinders(variable, term, context);
     }
 
-    public Term expandPatterns(SymbolicConstraint constraint, boolean narrow, TermContext context) {
-        return PatternExpander.expand(this, constraint, narrow, context);
+    public Term expandPatterns(SymbolicConstraint constraint, boolean narrowing, TermContext context) {
+        return PatternExpander.expand(this, constraint, narrowing, context);
     }
 
     @Override
