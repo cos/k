@@ -92,7 +92,7 @@ public class MetaK {
         kModules.add("K-WRAPPERS-LABELS");
     };
 
-    public static final ImmutableSet<Attribute> anywheres = ImmutableSet.of(
+    public static final ImmutableSet<Attribute<String>> anywheres = ImmutableSet.of(
             Attribute.FUNCTION,
             Attribute.PREDICATE,
             Attribute.PATTERN,
@@ -150,7 +150,7 @@ public class MetaK {
     public static boolean isAnywhere(Rule r) {
         if (null == r.getAttributes())
             return false;
-        for (Attribute any : anywheres) {
+        for (Attribute<?> any : anywheres) {
             if (any.getValue().equals(r.getAttribute(any.getKey())))
                 return true;
         }
@@ -273,10 +273,6 @@ public class MetaK {
 
     public static boolean isAnonVar(Variable node) {
         return node.getName().startsWith(Constants.anyVarSymbol);
-    }
-
-    public static String getListUnitLabel(String sep) {
-        return  "'.List{\"" + sep + "\"}";
     }
 
     public static List<Cell> getTopCells(Term t, org.kframework.kil.loader.Context context) {

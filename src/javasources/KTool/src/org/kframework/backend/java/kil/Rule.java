@@ -23,9 +23,6 @@ import org.kframework.backend.java.util.Utils;
 import org.kframework.compile.checks.CheckVariables;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
-import org.kframework.kil.Attributes;
-import org.kframework.kil.Location;
-import org.kframework.kil.Source;
 import org.kframework.kil.loader.Constants;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
@@ -62,11 +59,11 @@ public class Rule extends JavaSymbolicObject {
      * Left-hand sides of the local rewrite operations under read cells; such
      * left-hand sides are used as patterns to match against the subject term.
      */
-    private final Map<String, Term> lhsOfReadCells;
+    private final Map<CellLabel, Term> lhsOfReadCells;
     /**
      * Right-hand sides of the local rewrite operations under write cells.
      */
-    private final Map<String, Term> rhsOfWriteCells;
+    private final Map<CellLabel, Term> rhsOfWriteCells;
     /**
      * @see Rule#computeReusableBoundVars()
      */
@@ -76,12 +73,14 @@ public class Rule extends JavaSymbolicObject {
      * mutable, they must be copied when the RHS is instantiated to avoid
      * undesired sharing.
      */
-    private final Set<String> groundCells;
+    private final Set<CellLabel> groundCells;
     /**
      * Instructions generated from this rule to be executed by the
      * {@link KAbstractRewriteMachine}.
      */
     private final List<Instruction> instructions;
+
+    private final boolean modifyCellStructure;
 
     /**
      * Unbound variables in the rule before kompilation; that is, all variables
@@ -105,13 +104,11 @@ public class Rule extends JavaSymbolicObject {
             Collection<Variable> freshVariables,
             UninterpretedConstraint lookups,
             boolean compiledForFastRewriting,
-            Map<String, Term> lhsOfReadCells,
-            Map<String, Term> rhsOfWriteCells,
-            Set<String> cellsToCopy,
+            Map<CellLabel, Term> lhsOfReadCells,
+            Map<CellLabel, Term> rhsOfWriteCells,
+            Set<CellLabel> cellsToCopy,
             List<Instruction> instructions,
-            Attributes attributes,
-            Location location,
-            Source source,
+            ASTNode oldRule,
             Definition definition) {
         this.label = label;
         this.leftHandSide = leftHandSide;
@@ -121,13 +118,13 @@ public class Rule extends JavaSymbolicObject {
         this.freshVariables = ImmutableSet.copyOf(freshVariables);
         this.lookups = lookups;
 
-        super.setAttributes(attributes);
-        setLocation(location);
-        setSource(source);
+        copyAttributesFrom(oldRule);
+        setLocation(oldRule.getLocation());
+        setSource(oldRule.getSource());
 
-        if (attributes.containsKey(Constants.STDIN)
-                || attributes.containsKey(Constants.STDOUT)
-                || attributes.containsKey(Constants.STDERR)) {
+        if (oldRule.containsAttribute(Constants.STDIN)
+                || oldRule.containsAttribute(Constants.STDOUT)
+                || oldRule.containsAttribute(Constants.STDERR)) {
             Variable listVar = (Variable) lhsOfReadCells.values().iterator().next();
             BuiltinList.Builder streamListBuilder = BuiltinList.builder();
             for (Equality eq : lookups.equalities()) {
@@ -138,7 +135,7 @@ public class Rule extends JavaSymbolicObject {
             }
 
             Term streamList = streamListBuilder.build();
-            this.indexingPair = attributes.containsKey(Constants.STDIN) ?
+            this.indexingPair = oldRule.containsAttribute(Constants.STDIN) ?
                     IndexingPair.getInstreamIndexingPair(streamList, definition) :
                     IndexingPair.getOutstreamIndexingPair(streamList, definition);
         } else {
@@ -158,7 +155,7 @@ public class Rule extends JavaSymbolicObject {
         leftHandSide.accept(new BottomUpVisitor() {
             @Override
             public void visit(Cell cell) {
-                if (cell.getLabel().equals("k")) {
+                if (cell.getLabel().equals(CellLabel.K)) {
                     tempContainsKCell = true;
                 } else if (cell.contentKind() == Kind.CELL_COLLECTION) {
                     super.visit(cell);
@@ -216,6 +213,19 @@ public class Rule extends JavaSymbolicObject {
         this.reusableVariables  = computeReusableBoundVars();
         this.groundCells        = cellsToCopy != null ? ImmutableSet.copyOf(cellsToCopy) : null;
         this.instructions       = compiledForFastRewriting ? ImmutableList.copyOf(instructions) : null;
+
+        boolean modifyCellStructure;
+        if (compiledForFastRewriting) {
+            modifyCellStructure = false;
+            for (CellLabel wrtCellLabel : rhsOfWriteCells.keySet()) {
+                if (definition.context().getConfigurationStructureMap().get(wrtCellLabel.name()).hasChildren()) {
+                    modifyCellStructure = true;
+                }
+            }
+        } else {
+            modifyCellStructure = true;
+        }
+        this.modifyCellStructure = modifyCellStructure;
     }
 
     /**
@@ -236,8 +246,8 @@ public class Rule extends JavaSymbolicObject {
         if (compiledForFastRewriting) {
             Set<Term> lhsOfReadOnlyCell = Sets.newHashSet();
             /* add all variables that occur in the left-hand sides of read-write cells */
-            for (Map.Entry<String, Term> entry : lhsOfReadCells.entrySet()) {
-                String cellLabel = entry.getKey();
+            for (Map.Entry<CellLabel, Term> entry : lhsOfReadCells.entrySet()) {
+                CellLabel cellLabel = entry.getKey();
                 Term lhs = entry.getValue();
                 if (rhsOfWriteCells.containsKey(cellLabel)) {
                     lhsVariablesToReuse.addAll(VariableOccurrencesCounter.count(lhs));
@@ -339,7 +349,11 @@ public class Rule extends JavaSymbolicObject {
     }
 
     public boolean isPattern() {
-        return super.containsAttribute(Attribute.PATTERN_KEY);
+        return containsAttribute(Attribute.PATTERN_KEY);
+    }
+
+    public boolean isLemma() {
+        return containsAttribute(Attribute.LEMMA_KEY);
     }
 
     /**
@@ -388,11 +402,11 @@ public class Rule extends JavaSymbolicObject {
         return compiledForFastRewriting;
     }
 
-    public Map<String, Term> lhsOfReadCell() {
+    public Map<CellLabel, Term> lhsOfReadCell() {
         return lhsOfReadCells;
     }
 
-    public Map<String, Term> rhsOfWriteCell() {
+    public Map<CellLabel, Term> rhsOfWriteCell() {
         return rhsOfWriteCells;
     }
 
@@ -400,12 +414,19 @@ public class Rule extends JavaSymbolicObject {
         return reusableVariables;
     }
 
-    public Set<String> cellsToCopy() {
+    public Set<CellLabel> cellsToCopy() {
         return groundCells;
     }
 
     public List<Instruction> instructions() {
         return instructions;
+    }
+
+    /**
+     * Checks if this rule will modify the cell structure of the subject term.
+     */
+    public boolean modifyCellStructure() {
+        return modifyCellStructure;
     }
 
     @Override
@@ -444,7 +465,7 @@ public class Rule extends JavaSymbolicObject {
 
     @Override
     public int hashCode() {
-        if (hashCode == 0) {
+        if (hashCode == Utils.NO_HASHCODE) {
             hashCode = 1;
             hashCode = hashCode * Utils.HASH_PRIME + label.hashCode();
             hashCode = hashCode * Utils.HASH_PRIME + leftHandSide.hashCode();
