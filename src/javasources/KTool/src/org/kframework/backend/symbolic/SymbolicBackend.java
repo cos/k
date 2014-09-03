@@ -45,7 +45,7 @@ public class SymbolicBackend extends BasicBackend implements Backend {
     public static String NOTSYMBOLIC = "not-symbolic-kompile";
 
     @Inject
-    SymbolicBackend(Stopwatch sw, Context context) {
+    public SymbolicBackend(Stopwatch sw, Context context) {
         super(sw, context);
     }
 

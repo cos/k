@@ -47,7 +47,7 @@ public class JavaSymbolicBackend extends BasicBackend {
     private final Provider<KILtoBackendJavaKILTransformer> transformer;
 
     @Inject
-    JavaSymbolicBackend(
+    public JavaSymbolicBackend(
             Stopwatch sw,
             Context context,
             BinaryLoader loader,

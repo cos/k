@@ -25,7 +25,7 @@ public class KExceptionManager {
     private final GlobalOptions options;
 
     @Inject
-    KExceptionManager(GlobalOptions options) {
+    public KExceptionManager(GlobalOptions options) {
         this.options = options;
     }
 

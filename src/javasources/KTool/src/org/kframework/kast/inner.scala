@@ -1,30 +1,47 @@
 package org.kframework.kast.inner
 
-trait Bubble
+trait Production
+
+trait KLabel {
+  val name: String
+}
+trait KItem {
+  val label: KLabel
+  val items: Seq[K] = Seq()
+  val meta: Map[Symbol, Any] = Map()
+  val sort: Sort
+}
+
+trait Context {
+  val productions: Map[String, Production]
+}
 
 case class Sort(name: String)
-
-trait KItem
-
 // MetaKLabel ::= Token{"dummy"}  [regex(`[^`\s]+`)]
-case class KLabel(name: String)
 
-trait KConstant extends KItem
+case class SimpleKLabel(name: String) extends KLabel {
+  def apply(params: K*) = KApp(this, params)
+}
 
 // MetaKConstant ::= TOKENID "::" SORTID
-case class BasicKConstant(value: String, sort: Sort) extends KConstant
-
-// MetaKConstant ::= #klabel(MetaKLabel)
-case class WrappedKLabel(label: KLabel) extends KConstant
+case class KConstant(label: KLabel) extends KItem {
+  val sort = Sort("KItem")
+}
 
 // MetaKItem ::= MetaKLabel "(" MetaKList ")"
-case class KApp(label: KLabel, klist: List[K]) extends KItem
+case class KApp(label: KLabel, klist: Seq[K]) extends KItem
 
 // MetaKList  ::= NeList{MetaK,","}
 //              | ".::MetaKList"
 // is just a List[K]
 
-case class Variable(name: String) extends KItem
+object Variable extends KLabel {
+  val name = "Variable" 
+}
+
+case class Variable(name: String) extends KItem {
+  val label = Variable
+}
 
 trait K
 
@@ -46,3 +63,10 @@ case class Cell(
   attributes: Map[String, String],
   content: K,
   ellipses: Ellipses.Value)
+
+////////
+
+object Boolean {
+  def And = SimpleKLabel("'_andBool_")
+  def Or = SimpleKLabel("'_orBool_")
+}

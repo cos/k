@@ -286,6 +286,8 @@ public class DefinitionLoader {
                 // it means the cache is not valid, or it doesn't exist
                 cachedDef = new HashMap<>();
             }
+            if(cachedDef == null)
+                cachedDef = new HashMap<>();
 
             CacheLookupFilter clf = new CacheLookupFilter(context, cachedDef);
             int cachedSentences = 0;

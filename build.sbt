@@ -4,7 +4,7 @@ version := "3.0"
 
 scalaVersion := "2.11.1"
 
-libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.0" % "test"
+// libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.1" % "test"
 
 lazy val kToolDirectory = settingKey[File]("K tool directory")
 

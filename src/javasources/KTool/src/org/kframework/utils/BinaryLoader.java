@@ -18,7 +18,7 @@ public class BinaryLoader {
     // be replaced by serialized objects containing data only.
     private final Injector injector;
 
-    @Inject private static BinaryLoader loader;
+    @Inject public static BinaryLoader loader;
 
     @Deprecated
     public static BinaryLoader instance() {

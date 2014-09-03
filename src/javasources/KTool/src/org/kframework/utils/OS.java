@@ -18,7 +18,7 @@ public enum OS {
     }
 
     public final boolean isPosix;
-    private final String libDir;
+    public String libDir;
 
     public static OS current() {
         String osString = System.getProperty("os.name").toLowerCase();
