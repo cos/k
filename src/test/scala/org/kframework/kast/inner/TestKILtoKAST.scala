@@ -5,12 +5,13 @@ import org.junit.runner.RunWith
 import org.mockito.runners.MockitoJUnitRunner
 import collection.JavaConversions._
 import org.kframework._
+import org.kframework.kast.KILtoKAST
 
 @RunWith(classOf[MockitoJUnitRunner])
 class TestKILtoKAST {
 
   import backend.java.kil
-  import org.kframework.kast.outer
+  import org.kframework.kast.inner
 
   @Test
   def testTest() {
@@ -24,8 +25,12 @@ class TestKILtoKAST {
     endmodule
     """
 
-    val kil = TextToBackendKIL.parseDefinition(play)
+    val (kil, _, _) = TextToBackendKIL.parseDefinition(play)
+
+    val converted = KILtoKAST.convert(kil)
 
     println(kil)
+    
+    println(converted)
   }
 }

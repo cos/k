@@ -10,8 +10,6 @@ import kompile.KompileOptions.Experimental
 import parser.DefinitionLoader
 import parser.generator.OuterParser
 import main.GlobalOptions
-import kil.Definition
-import kil.loader.Context
 import backend.Backend
 import backend.Backends
 import backend.java.symbolic.BuiltinFunction
@@ -44,25 +42,22 @@ object TextToBackendKIL {
     val file = File.createTempFile("test", ".k")
     FileUtil.save(file.toString(), definitionText)
 
-    val backend = mock(classOf[Backend])
     val kompileOptions = mock(classOf[KompileOptions])
     when(kompileOptions.mainModule()).thenReturn("TEST")
     kompileOptions.global = globalOptions
     kompileOptions.backend = Backends.SYMBOLIC
     kompileOptions.experimental = new Experimental();
 
-    when(backend.autoinclude()).thenReturn(false)
-    when(backend.documentation()).thenReturn(false)
     context.kompileOptions = kompileOptions
 
     val binaryLoader = mock(classOf[BinaryLoader])
     BinaryLoader.loader = binaryLoader
 
-    val definitionLoader = new DefinitionLoader(new Stopwatch(globalOptions), binaryLoader, kem, new OuterParser(kompileOptions, backend), backend)
+    val definitionLoader = new DefinitionLoader(new Stopwatch(globalOptions), binaryLoader, kem, new OuterParser(kompileOptions, false, ""), false, false)
     (definitionLoader.parseDefinition(file, "TEST", context), context, binaryLoader)
   }
 
-  def toBackendKIL(d: Definition, context: kil.loader.Context, loader: BinaryLoader): backend.java.kil.Definition = {
+  def toBackendKIL(d: kil.Definition, context: kil.loader.Context, loader: BinaryLoader): backend.java.kil.Definition = {
 
     val globalContext = new backend.java.kil.GlobalContext(null,
       mock(classOf[BuiltinFunction]), null,
@@ -77,13 +72,13 @@ object TextToBackendKIL {
       Providers.of(mock(classOf[backend.java.indexing.IndexingTable])),
       Providers.of(transformer)) {
 
-      override def lastStep(javaDef: Definition): Definition = javaDef
+      override def lastStep(javaDef: kil.Definition): kil.Definition = javaDef
     }
 
     val prepared = try {
       symbolicBackend.getCompilationSteps().compile(d, symbolicBackend.getDefaultStep())
     } catch {
-      case e: CompilerStepDone => e.getResult().asInstanceOf[Definition]
+      case e: CompilerStepDone => e.getResult().asInstanceOf[kil.Definition]
     }
 
     transformer.transformDefinition(prepared)

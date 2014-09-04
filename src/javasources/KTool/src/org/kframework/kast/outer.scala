@@ -1,109 +1,73 @@
-package org.kframework.kast.outer
-
-import org.kframework.kast.inner._
+package org.kframework.kast
 
 object Definition {
   def apply(modules: Module*): Definition = Definition(modules.toSet)
+  type Attributes = Map[String, String]
 }
-case class Definition(modules: Set[Module])
+
+import Definition._
+
+case class AttributesDeclaration(attributes: Attributes) {
+  override def toString =
+    if (attributes.isEmpty)
+      ""
+    else
+      " [ " + attributes.mkString(", ") + "]"
+}
+
+case class Definition(modules: Set[Module]) {
+  override def toString = modules.mkString("\n\n\n")
+}
 
 case class Module(
   name: String,
-  imports: Set[Module],
-  sentences: Set[Sentence])
+  sentences: Set[Sentence]) {
+  override def toString = "module " + name + "\n" + sentences.mkString("\n\n") + "\n\nendmodule"
+}
 
 trait Sentence
 
 case class Rule(
-  left: K,
-  right: K,
+  body: K,
   requires: Option[K],
-  attributes: Map[String, Any]) extends Sentence
+  ensures: Option[K],
+  attributes: AttributesDeclaration) extends Sentence {
+  override def toString = "rule " + body + "?>rule<?" + attributes
+}
 
-object DirectrTranslationSyntax {
+case class Configuration(contents: K) extends Sentence {
+  override def toString = "configuration " + contents
+}
 
-  trait Bubble
+case class Import(what: String) extends Sentence
 
-  // Definition ::= Requires Modules
-  case class Definition(requires: List[Require], modules: List[Module])
+object Associativity extends Enumeration {
+  val Left, Right, NonAssoc, Unspecified = Value
+}
 
-  // Require    ::= "require" STRING
-  case class Require(name: String)
+case class Syntax(sort: Sort, blocks: Seq[Block]) extends Sentence {
+  override def toString = "syntax " + blocks.mkString("\n")
+}
 
-  // Module     ::= "module" MODULENAME Imports Sentences "endmodule"
-  case class Module(name: String,
-    imports: List[Import], sentences: List[Sentence])
+trait ProductionItem
 
-  // Import     ::= "imports" MODULENAME
-  case class Import(name: String)
+trait Production {
+  val attributes: AttributesDeclaration
+}
 
-  // Keyword ::= "rule"
-  //                 | ""
-  //                 | "configuration"
-  //                 | "endmodule"
-  //                 | "context"
+case class NormalProduction(items: Seq[ProductionItem], attributes: AttributesDeclaration) extends Production {
+  override def toString = "" + items.mkString(" ") + attributes
+}
 
-  trait Sentence
+case class UserList(sort: Sort, separator: String, attributes: AttributesDeclaration) extends Production
 
-  //  Sentence ::= "rule" Bubble                   Attributes
-  //             | "rule" Bubble "requires" Bubble Attributes
-  case class Rule(
-    bubble: Bubble,
-    requires: Option[Bubble],
-    attributes: List[Attribute]) extends Sentence
+case class NonTerminal(name: String, sort: Sort) extends ProductionItem
+trait Regex
+case class Lexical(regex: Regex) extends ProductionItem
+case class Terminal(value: String) extends ProductionItem {
+  override def toString = "\"" + value + "\""
+}
 
-  case class Configuration(bubble: Bubble) extends Sentence
-  case class Context(bubble: Bubble) extends Sentence
-
-  // Syntax declarations
-  // Syntax ::= "syntax" SORTID "::=" PriorityBlockList
-  // Syntax ::= "syntax" SORTID
-  // Syntax ::= "syntax" SORTID "[" AnnotationList "]"
-  case class Syntax(
-    sort: Sort, blocks: List[PriorityBlock],
-    attributes: List[Attribute])
-
-  // PriorityBlockList ::= NeList{PriorityBlock,">"}
-  // PriorityBlock ::=              ProductionList
-  //                       | "left:"      ProductionList
-  //                       | "right:"     ProductionList
-  //                       | "non-assoc:" ProductionList
-  object Associativity extends Enumeration {
-    val Left, Right, NonAssoc = Value
-  }
-  case class PriorityBlock(
-    assoc: Associativity.Value,
-    productions: List[Production])
-
-  // ProductionList   ::= NeList{Production,"|"}
-  // Production       ::= SimpleProduction Attributes
-  // SimpleProduction ::= NeList{ProductionItem,""}
-  //                          | TAG "(" SORTIDs ")"
-  // Attributes ::= "" [onlyLabel, klabel(noAttributes)]
-  //                    | "[" AnnotationList "]"
-  //
-  // ProductionItem ::= SORTID  // non-terminal
-  //                        | STRING  // terminals
-  //                        | "Token{" TOKEN "}" // will see
-  //                        | "List{" SORTID "," STRING "}"
-  //                        | "NeList{" SORTID "," STRING "}"
-
-  trait Production // TODO
-
-  trait Attribute // TODO
-
-  //
-  // AnnotationList ::= NeList{Annotation,","}
-  // Annotation ::= TAG
-  //                    | TAG "(" TAGCONTENT ")"
-  //                    | TAG "(" STRING ")"
-  // TAG        ::= Token{"dummy"} [regex([a-z][A-Za-z\-0-9]*)]
-  // TAGCONTENT ::= List{TAGC,""}  // anything with balanced parenthesis. Will have to get original string.
-  // TAGC       ::= Token{"dummy"} [regex("[^\\n\\r\\(\\)\\\"]+")]
-  // TAGC       ::= "(" TAGCONTENT ")"
-  //// STRING     ::= Token{"dummy"} [regex("[\\\"](([^\\\"\\n\\r\\\\])|([\\\\][nrtf\\\"\\\\])|)*[\\\"]")]
-  // TOKEN      ::= Token{"dummy"} [regex(([^\}\n\r]|[\\][\}])+)]
-  //// SORTID     ::= Token{"dummy"} [regex([#]?[A-Z][A-Za-z0-9]*)]
-  // SORTIDs    ::= NeList{SORTID,","}
-
+case class Block(assoc: Associativity.Value, productions: Set[Production]) {
+  override def toString = assoc + " " + productions.mkString(" | ")
 }

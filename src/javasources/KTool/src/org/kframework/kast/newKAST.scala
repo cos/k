@@ -1,4 +1,4 @@
-package org.kframework.kast
+package org.kframework.kastPLAY
 
 import org.kframework.kil.Source
 import org.kframework.kil.Location

@@ -178,7 +178,7 @@ public class Definition extends ASTNode implements Interfaces.MutableList<Defini
     }
 
     @Override
-    protected <P, R, E extends Throwable> R accept(Visitor<P, R, E> visitor, P p) throws E {
+    public <P, R, E extends Throwable> R accept(Visitor<P, R, E> visitor, P p) throws E {
         return visitor.complete(this, visitor.visit(this, p));
     }
 

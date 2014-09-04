@@ -121,7 +121,7 @@ public class OuterParser {
 
             boolean predefined = file.getCanonicalPath().startsWith(KPaths.getKBase(false) + File.separator + "include");
             if(autoinclude && !predefined)
-                    context.addFileRequirement(buildCanonicalPath(backend.autoincludedFile(), file).getCanonicalPath(), file.getCanonicalPath());
+                    context.addFileRequirement(buildCanonicalPath(autoincludedFile, file).getCanonicalPath(), file.getCanonicalPath());
 
             // add the modules to the modules list and to the map for easy access
             for (DefinitionItem di : defItemList) {
