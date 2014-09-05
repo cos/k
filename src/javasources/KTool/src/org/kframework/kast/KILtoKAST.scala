@@ -22,8 +22,12 @@ object KILtoKAST {
     ???
   }
 
-  def convert(n: kil.Attributes): kast.Definition.Attributes = {
-    n map { case (k, v) => (k.toString, v.toString) } toMap
+  def convert(n: kil.Attributes): kast.Attributes = {
+    kast.Attributes(n map { case (_, v) => (v.getKey().toString, 
+        if(v.getValue() == null)
+          "on"
+        else
+          v.getValue().toString) } toMap)
   }
 
   def convert(n: kil.BackendTerm): Return = {
@@ -54,10 +58,6 @@ object KILtoKAST {
     ???
   }
 
-  def convert(n: kil.Cell): Return = {
-    ???
-  }
-
   def convert(n: kil.Collection): Return = {
     ???
   }
@@ -70,7 +70,7 @@ object KILtoKAST {
     ???
   }
 
-  def convert(n: kil.Configuration): kast.Configuration = kast.Configuration(n.getBody())
+  def convert(n: kil.Configuration): kast.Configuration = kast.Configuration(convert(n.getBody()))
 
   def convert(n: kil.Constant): Return = {
     ???
@@ -85,12 +85,10 @@ object KILtoKAST {
   }
 
   def convert(n: kil.Definition): kast.Definition = {
-    val kilModules = n.getModulesMap().values().toSet
-    kast.Definition(kilModules map convert)
-  }
-
-  def convert(n: kil.DefinitionItem): Return = {
-    ???
+    val kilModules = n.getItems().toSet
+    kast.Definition(kilModules map {
+      case m: kil.Module => convert(m)
+    })
   }
 
   def convert(n: kil.FloatBuiltin): Return = {
@@ -137,8 +135,8 @@ object KILtoKAST {
     ???
   }
 
-  def convert(n: kil.KLabel): Return = {
-    ???
+  implicit def convert(n: kil.KLabel): kast.KLabel = n match {
+    case l: kil.KLabelConstant => kast.SimpleKLabel(l.getLabel())
   }
 
   def convert(n: kil.KLabelConstant): Return = {
@@ -149,8 +147,8 @@ object KILtoKAST {
     ???
   }
 
-  def convert(n: kil.KList): Return = {
-    ???
+  def convert(n: kil.KList): Seq[kast.KItem] = {
+    n.getContents() map convert
   }
 
   def convert(n: kil.KSequence): Return = {
@@ -309,13 +307,15 @@ object KILtoKAST {
     kast.Syntax(convert(n.getDeclaredSort().getSort()), blocks)
   }
 
-  implicit def convert(n: kil.Term): kast.K = n match {
+  implicit def convert(n: kil.Term): kast.KItem = n match {
     case t: kil.Hole => kast.Hole()
-    case rw: kil.Rewrite => kast.Rewrite(rw.getLeft(), rw.getRight())
-    case cons: kil.TermCons => kast.Cons(cons.getSort())(cons.getContents() map convert: _*)
-    case cell: kil.Cell => kast.Cell(cell.getLabel())(cell.getContents())
-    case variable: kil.Variable => kast.Variable(variable.fullName())
-    case bag: kil.Bag => kast.Bag(bag.getContents() map convert :_*)
+    case rw: kil.Rewrite => kast.Rewrite(convert(rw.getLeft()), convert(rw.getRight()))
+    //    case cons: kil.TermCons => kast.TermCons(cons.getSort())(cons.getContents() map convert: _*)
+    case cell: kil.Cell => kast.Cell(cell.getLabel(), cell.getContents(), Attributes(cell.getCellAttributes().toMap))
+    case variable: kil.Variable => kast.Variable(variable.fullName(), variable.getSort())
+    case bag: kil.Bag => kast.Bag(bag.getContents() map convert: _*)
+    case kseq: kil.KSequence => kast.KSeq(kseq.getContents() map convert, kseq.getSort())
+    case kapp: kil.KApp => kast.KApp(kapp.getLabel().asInstanceOf[kil.KLabel], convert(kapp.getChild().asInstanceOf[kil.KList]), kapp.getSort())
     case null => null
   }
 

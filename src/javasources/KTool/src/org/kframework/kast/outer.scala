@@ -5,6 +5,28 @@ object Definition {
   type Attributes = Map[String, String]
 }
 
+object Attributes {
+  val on = "on"
+  def apply(): Attributes = Attributes(Map())
+}
+
+case class Attributes(a: Map[String, String]) {
+  import Attributes._
+  
+  override def toString = a.map({
+    case (k, v) =>
+      if (v == "on")
+        k
+      else
+        k + "(" + v + ")"
+  }).mkString(", ")
+
+  def isEmpty = a.isEmpty
+
+  def +(s: String) = Attributes(a + (s -> on))
+  def +(t: (String, String)) = Attributes(a + t)
+}
+
 import Definition._
 
 case class AttributesDeclaration(attributes: Attributes) {
@@ -12,7 +34,7 @@ case class AttributesDeclaration(attributes: Attributes) {
     if (attributes.isEmpty)
       ""
     else
-      " [ " + attributes.mkString(", ") + "]"
+      " [ " + attributes + "]"
 }
 
 case class Definition(modules: Set[Module]) {
@@ -29,14 +51,14 @@ trait Sentence
 
 case class Rule(
   body: K,
-  requires: Option[K],
-  ensures: Option[K],
+  requires: Option[KItem],
+  ensures: Option[KItem],
   attributes: AttributesDeclaration) extends Sentence {
-  override def toString = "rule " + body + "?>rule<?" + attributes
+  override def toString = "  rule " + body + "?>rule<?" + attributes
 }
 
 case class Configuration(contents: K) extends Sentence {
-  override def toString = "configuration " + contents
+  override def toString = "  configuration " + contents
 }
 
 case class Import(what: String) extends Sentence
@@ -46,7 +68,7 @@ object Associativity extends Enumeration {
 }
 
 case class Syntax(sort: Sort, blocks: Seq[Block]) extends Sentence {
-  override def toString = "syntax " + blocks.mkString("\n")
+  override def toString = "  syntax " + sort + " ::= " + blocks.mkString("\n")
 }
 
 trait ProductionItem
@@ -69,5 +91,14 @@ case class Terminal(value: String) extends ProductionItem {
 }
 
 case class Block(assoc: Associativity.Value, productions: Set[Production]) {
-  override def toString = assoc + " " + productions.mkString(" | ")
+  override def toString = {
+    import Associativity._
+    val assocString = assoc match {
+      case Unspecified => ""
+      case Left => "left:\n"
+      case Right => "right:\n"
+      case NonAssoc => "non-assoc:\n"
+    }
+    assocString + productions.mkString("\n              |")
+  }
 }

@@ -21,9 +21,10 @@ import compile.utils.CompilerStepDone
 import com.google.inject.util.Providers
 import java.nio.file.Files
 import java.io.File
+import collection.JavaConversions._
 
 object TextToBackendKIL {
-  def parseDefinition(definitionText: String): (kil.Definition, kil.loader.Context, BinaryLoader) = {
+  def parseDefinition(definitionText: String, mainModule: String): (kil.Definition, kil.loader.Context, BinaryLoader) = {
     val kem = new KExceptionManager(new main.GlobalOptions())
 
     val globalOptions = new GlobalOptions()
@@ -33,6 +34,7 @@ object TextToBackendKIL {
     OS.current().libDir = "lib/native/macosx"
 
     val testDir = Files.createTempDirectory("test")
+
     context.kompiled = new File(testDir.toAbsolutePath().toString() + "/" + "test-kompiled")
 
     context.dotk = new File(testDir.toAbsolutePath().toString() + "/" + ".k")
@@ -43,10 +45,13 @@ object TextToBackendKIL {
     FileUtil.save(file.toString(), definitionText)
 
     val kompileOptions = mock(classOf[KompileOptions])
-    when(kompileOptions.mainModule()).thenReturn("TEST")
+    when(kompileOptions.mainModule()).thenReturn(mainModule)
     kompileOptions.global = globalOptions
     kompileOptions.backend = Backends.SYMBOLIC
     kompileOptions.experimental = new Experimental();
+    kompileOptions.transition = List[String]()
+    kompileOptions.supercool = List[String]()
+    kompileOptions.superheat = List[String]()
 
     context.kompileOptions = kompileOptions
 
@@ -54,10 +59,10 @@ object TextToBackendKIL {
     BinaryLoader.loader = binaryLoader
 
     val definitionLoader = new DefinitionLoader(new Stopwatch(globalOptions), binaryLoader, kem, new OuterParser(kompileOptions, false, ""), false, false)
-    (definitionLoader.parseDefinition(file, "TEST", context), context, binaryLoader)
+    (definitionLoader.parseDefinition(file, mainModule, context), context, binaryLoader)
   }
 
-  def toBackendKIL(d: kil.Definition, context: kil.loader.Context, loader: BinaryLoader): backend.java.kil.Definition = {
+  def toBackendKIL(d: kil.Definition, context: kil.loader.Context, loader: BinaryLoader): kil.Definition = {
 
     val globalContext = new backend.java.kil.GlobalContext(null,
       mock(classOf[BuiltinFunction]), null,
@@ -71,21 +76,21 @@ object TextToBackendKIL {
       loader,
       Providers.of(mock(classOf[backend.java.indexing.IndexingTable])),
       Providers.of(transformer)) {
-
       override def lastStep(javaDef: kil.Definition): kil.Definition = javaDef
     }
 
-    val prepared = try {
+    val definitionAtEndOfCompiler = try {
       symbolicBackend.getCompilationSteps().compile(d, symbolicBackend.getDefaultStep())
     } catch {
       case e: CompilerStepDone => e.getResult().asInstanceOf[kil.Definition]
     }
 
-    transformer.transformDefinition(prepared)
+    definitionAtEndOfCompiler
+    //    transformer.transformDefinition(prepared)
   }
 
-  def apply(definitionText: String) = {
-    val (definition, context, loader) = parseDefinition(definitionText)
+  def apply(definitionText: String, mainModule: String) = {
+    val (definition, context, loader) = parseDefinition(definitionText, mainModule)
     toBackendKIL(definition, context, loader)
   }
 }

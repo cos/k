@@ -2,35 +2,36 @@ package org.kframework.kast
 
 trait KLabel {
   val name: String
-  def apply(klist: K*) = KApp(this, klist)
-  
+  def apply(klist: KItem*) = KApp(this, klist)
+
   override def toString = name
 }
 
 object KItem {
-  implicit def toK(kitem: KItem) = Heated(Seq(kitem))
+  implicit def toK(t: KItem) = KSeq(Seq(t), t.sort)
 }
 
 trait KItem {
-  val label: KLabel
-  val items: Seq[K] = Seq()
-  val meta: Map[Symbol, Any] = Map()
+  val klabel: KLabel
+  val klist: Seq[KItem] = Seq()
+  val attributes: Attributes = Attributes(Map())
   val sort: Sort
 
-  override def toString = label +
-    (if (items.isEmpty) "" else "(" + items.mkString(", ") + ")") + ":" + sort +
-    (if (meta.isEmpty) "" else "{" + meta.mkString(", ") + "}")
+  override def toString = klabel +
+    (if (klist.isEmpty) "" else "(" + klist.sortBy(_.toString).mkString(", ") + ")") +
+    ":" + sort +
+    (if (attributes.isEmpty) "" else "[" + attributes.toString() + "]")
 }
 
-trait K {
-
-}
+trait K
 
 trait Context {
   val productions: Map[String, Set[Production]]
 }
 
-case class Sort(name: String)
+case class Sort(name: String) {
+  override def toString = name
+}
 // MetaKLabel ::= Token{"dummy"}  [regex(`[^`\s]+`)]
 
 case class SimpleKLabel(name: String) extends KLabel {
@@ -38,30 +39,25 @@ case class SimpleKLabel(name: String) extends KLabel {
 }
 
 // MetaKConstant ::= TOKENID "::" SORTID
-case class KConstant(label: KLabel) extends KItem {
+case class KConstant(klabel: KLabel) extends KItem {
   val sort = Sort("KItem")
 }
 
 object KApp {
-  def apply(label: KLabel, klist: Seq[K]): KApp = {
+  def apply(label: KLabel, klist: Seq[KItem]): KApp = {
     KApp(label, klist, Sort("???"))
   }
 }
 
 // MetaKItem ::= MetaKLabel "(" MetaKList ")"
-case class KApp(label: KLabel, klist: Seq[K], sort: Sort) extends KItem
+case class KApp(klabel: KLabel, override val klist: Seq[KItem], sort: Sort) extends KItem
 
 // MetaKList  ::= NeList{MetaK,","}
 //              | ".::MetaKList"
 // is just a List[K]
 
-object Variable extends KLabel {
-  val name = "Variable"
-}
-
-case class Variable(name: String) extends KItem {
-  val label = Variable
-  val sort = Sort("Variable")
+case class Variable(name: String, sort: Sort) extends KItem {
+  val klabel = SimpleKLabel(name)
 }
 
 object Hole extends KLabel {
@@ -71,12 +67,15 @@ object Hole extends KLabel {
 // MetaK ::= NeList{MetaKItem,"~>"}
 //         | ".::MetaK"
 
-case class Heated(items: Seq[KItem]) extends K {
-  override def toString = items.mkString("⤳")
+case class KSeq(override val klist: Seq[KItem], sort: Sort) extends KItem with K {
+  val klabel = SimpleKLabel("KSeq")
+  override def toString = klist.mkString("⤳")
 }
 
 // MetaK ::= MetaK "=>" MetaK
-case class Rewrite(left: K, right: K) extends K {
+case class Rewrite(left: KSeq, right: KSeq) extends KItem with K {
+  val klabel = SimpleKLabel("Rewrite")
+  val sort = left.sort
   override def toString = left + " => " + right
 }
 
@@ -88,15 +87,15 @@ object Boolean {
   def Or = SimpleKLabel("'_orBool_")
 }
 
-case class Cons(sort: Sort) extends KLabel {
-  // Cosmin: I don't like this KLabel, but will do for now
-  val name = "Cons"
+case class Cell(name: String, content: KItem, override val attributes: Attributes) extends KItem {
+  val klabel = SimpleKLabel("<" + name + ">")
+  val sort = Sort("Cell")
+  override val klist = Seq(content)
+
+  override def toString = "<" + name + ">" + content + "</" + name + ">"
 }
 
-case class Cell(name: String) extends KLabel {
-}
-
-case class Bag(override val items: K*) extends KItem {
-  val label = SimpleKLabel("Bag")
+case class Bag(override val klist: KItem*) extends KItem {
+  val klabel = SimpleKLabel("Bag")
   val sort = Sort("Bag")
 }
