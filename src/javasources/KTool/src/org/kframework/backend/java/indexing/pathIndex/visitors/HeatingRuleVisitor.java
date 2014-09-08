@@ -66,10 +66,10 @@ public class HeatingRuleVisitor extends RuleVisitor {
     @Override
     public void visit(Variable variable) {
         Sort sort;
-        ArrayList<Production> productions =
-                (ArrayList<Production>) context.productionsOf(currentLabel);
+        Set<Production> productions =
+                (Set<Production>) context.productionsOf(currentLabel);
         if (productions.size() == 1) {
-            Production p = productions.get(0);
+            Production p = productions.iterator().next();
             sort = p.getChildSort(counter - 1);
             pStrings.add(pStringStack.peek() + counter + "." + sort);
         } else {
