@@ -12,7 +12,7 @@ import org.kframework.kast.Boolean
 import org.kframework.kast.Context
 import org.kframework.kast.Sentence
 
-object KILtoKAST { //extends Function1[kil.Definition, kast.Definition]
+object KILtoKAST extends Function1[kil.Definition, kast.Definition] { 
 
   val Term = kast.SortedTermConstructor(kast.BasicConstructor)
 

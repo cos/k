@@ -33,9 +33,9 @@ trait AssertKILtoKAST extends JUnitTest {
       }
 
     ///
-    val kil = TextToEndOfCompiler(fullKilModule, moduleName)
-    println(kil)
-    val converted = KILtoKAST(kil)
+    val compiler = TestingCompiler(fullKilModule, moduleName)
+    println(compiler.parsedKIL)
+    val converted = KILtoKAST(compiler.kompiledKIL)
     ///
 
     val actual =

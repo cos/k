@@ -7,7 +7,7 @@ import collection.JavaConversions._
 import org.kframework._
 
 @RunWith(classOf[MockitoJUnitRunner])
-class TestKILtoKAST extends AssertKILtoKAST {
+class TestConversion extends AssertKILtoKAST {
 
   import backend.java.kil
   import org.kframework.kast
