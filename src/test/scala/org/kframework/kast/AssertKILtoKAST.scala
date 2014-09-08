@@ -1,6 +1,6 @@
-package org.kframework.kast.inner
+package org.kframework.kast
 
-import org.kframework.kast.KILtoKAST
+import org.kframework.kast.convertors.KILtoKAST
 import org.junit.Assert._
 
 trait AssertKILtoKAST extends JUnitTest {
@@ -33,9 +33,9 @@ trait AssertKILtoKAST extends JUnitTest {
       }
 
     ///
-    val kil = TextToBackendKIL(fullKilModule, moduleName)
+    val kil = TextToEndOfCompiler(fullKilModule, moduleName)
     println(kil)
-    val converted = KILtoKAST.convert(kil)
+    val converted = KILtoKAST(kil)
     ///
 
     val actual =
@@ -43,7 +43,7 @@ trait AssertKILtoKAST extends JUnitTest {
         converted.toString.trim
       else {
         val noModuleWrapper = converted.toString.replace("module " + moduleName, "").replace("endmodule", "")
-        
+
         "  " + (if (kilText.contains("configuration"))
           noModuleWrapper.trim
         else

@@ -1,4 +1,4 @@
-package org.kframework.kast.inner
+package org.kframework.kast
 
 import org.mockito.Mockito._
 import org.kframework._
@@ -23,7 +23,7 @@ import java.nio.file.Files
 import java.io.File
 import collection.JavaConversions._
 
-object TextToBackendKIL {
+object TextToEndOfCompiler {
   def parseDefinition(definitionText: String, mainModule: String): (kil.Definition, kil.loader.Context, BinaryLoader) = {
     val kem = new KExceptionManager(new main.GlobalOptions())
 

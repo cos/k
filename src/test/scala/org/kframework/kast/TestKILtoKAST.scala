@@ -1,4 +1,4 @@
-package org.kframework.kast.inner
+package org.kframework.kast
 
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -10,7 +10,7 @@ import org.kframework._
 class TestKILtoKAST extends AssertKILtoKAST {
 
   import backend.java.kil
-  import org.kframework.kast.inner
+  import org.kframework.kast
 
   @Test def testEmptyModule() {
     assertConversion("", "")
@@ -29,11 +29,11 @@ class TestKILtoKAST extends AssertKILtoKAST {
       syntax Exp ::= "a" | "b"
       rule a => b
       """, """
-  syntax KLabel ::= "'a" [ arity(0)]
-
   syntax KLabel ::= "'b" [ arity(0)]
 
-  rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag</generatedTop>?>rule<? [ computational()]
+  syntax KLabel ::= "'a" [ arity(0)]
+
+  rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag[Map('bag -> on)]</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag[Map('bag -> on)]</generatedTop>?>rule<? [ computational()]
     """)
   }
 
@@ -48,19 +48,19 @@ class TestKILtoKAST extends AssertKILtoKAST {
 
       configuration <k> $PGM </k>
 """, """
-syntax KLabel ::= "'a" [ arity(0)]
+  syntax KLabel ::= "'b" [ arity(0)]
 
-  configuration <generatedTop><k>$PGM:Bag</k></generatedTop>
+  syntax KLabel ::= "'a" [ arity(0)]
+
+  syntax KLabel ::= "'" [ arity(0)]
 
   syntax CellLabel ::= "k"
 
-  syntax KLabel ::= "'b" [ arity(0)]
-
-  rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag</generatedTop>?>rule<? [ computational()]
-
   syntax CellLabel ::= "generatedTop"
 
-  syntax KLabel ::= "'" [ arity(0)]
+  rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[Map('bag -> on)]</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[Map('bag -> on)]</generatedTop>?>rule<? [ computational()]
+
+  configuration <generatedTop><k>$PGM:Bag</k></generatedTop>
 """)
   }
 }

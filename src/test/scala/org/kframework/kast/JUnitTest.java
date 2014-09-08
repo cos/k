@@ -1,4 +1,4 @@
-package org.kframework.kast.inner;
+package org.kframework.kast;
 
 import org.junit.Rule;
 import org.junit.rules.TestName;

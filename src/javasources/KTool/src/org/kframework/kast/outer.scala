@@ -2,32 +2,11 @@ package org.kframework.kast
 
 object Definition {
   def apply(modules: Module*): Definition = Definition(modules.toSet)
-  type Attributes = Map[String, String]
 }
 
-object Attributes {
-  val on = "on"
-  def apply(): Attributes = Attributes(Map())
+case class Definition(modules: Set[Module]) {
+  override def toString = modules.mkString("\n\n\n")
 }
-
-case class Attributes(a: Map[String, String]) {
-  import Attributes._
-  
-  override def toString = a.map({
-    case (k, v) =>
-      if (v == "on")
-        k
-      else
-        k + "(" + v + ")"
-  }).mkString(", ")
-
-  def isEmpty = a.isEmpty
-
-  def +(s: String) = Attributes(a + (s -> on))
-  def +(t: (String, String)) = Attributes(a + t)
-}
-
-import Definition._
 
 case class AttributesDeclaration(attributes: Attributes) {
   override def toString =
@@ -37,27 +16,23 @@ case class AttributesDeclaration(attributes: Attributes) {
       " [ " + attributes + "]"
 }
 
-case class Definition(modules: Set[Module]) {
-  override def toString = modules.mkString("\n\n\n")
-}
-
 case class Module(
   name: String,
   sentences: Set[Sentence]) {
-  override def toString = "module " + name + "\n" + sentences.mkString("\n\n") + "\n\nendmodule"
+  override def toString = "module " + name + "\n" + sentences.toList.sortBy(_.toString).reverse.mkString("\n\n") + "\n\nendmodule"
 }
 
 trait Sentence
 
 case class Rule(
-  body: K,
-  requires: Option[KItem],
-  ensures: Option[KItem],
+  body: Term,
+  requires: Term,
+  ensures: Term,
   attributes: AttributesDeclaration) extends Sentence {
   override def toString = "  rule " + body + "?>rule<?" + attributes
 }
 
-case class Configuration(contents: K) extends Sentence {
+case class Configuration(contents: Term) extends Sentence {
   override def toString = "  configuration " + contents
 }
 
