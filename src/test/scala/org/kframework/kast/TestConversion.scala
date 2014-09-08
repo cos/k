@@ -7,17 +7,17 @@ import collection.JavaConversions._
 import org.kframework._
 
 @RunWith(classOf[MockitoJUnitRunner])
-class TestConversion extends AssertKILtoKAST {
+class TestConversion extends AbstractConversionTest {
 
   import backend.java.kil
   import org.kframework.kast
 
   @Test def testEmptyModule() {
-    assertConversion("", "")
+    assertKILtoKAST("", "")
   }
 
   @Test def testSimpleSyntax() {
-    assertConversion("""
+    assertKILtoKAST("""
       syntax Exp ::= "a"
       """, """
       syntax KLabel ::= "'a" [ arity(0)]
@@ -25,7 +25,7 @@ class TestConversion extends AssertKILtoKAST {
   }
 
   @Test def testSimpleRule() {
-    assertConversion("""
+    assertKILtoKAST("""
       syntax Exp ::= "a" | "b"
       rule a => b
       """, """
@@ -40,7 +40,7 @@ class TestConversion extends AssertKILtoKAST {
   @Test
   def testSimpleModule() {
 
-    assertConversion(
+    assertKILtoKAST(
       """
       syntax Exp ::= "a" | "b"
 
@@ -52,15 +52,7 @@ class TestConversion extends AssertKILtoKAST {
 
   syntax KLabel ::= "'a" [ arity(0)]
 
-  syntax KLabel ::= "'" [ arity(0)]
-
-  syntax CellLabel ::= "k"
-
-  syntax CellLabel ::= "generatedTop"
-
   rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[Map('bag -> on)]</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[Map('bag -> on)]</generatedTop>?>rule<? [ computational()]
-
-  configuration <generatedTop><k>$PGM:Bag</k></generatedTop>
 """)
   }
 }
