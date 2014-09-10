@@ -13,14 +13,14 @@ class TestConversion extends AbstractConversionTest {
   import org.kframework.kast
 
   @Test def testEmptyModule() {
-    assertKILtoKAST("", "")
+    assertFullConversion("", "", "")
   }
 
   @Test def testSimpleSyntax() {
     assertKILtoKAST("""
       syntax Exp ::= "a"
       """, """
-      syntax KLabel ::= "'a" [ arity(0)]
+  syntax KLabel ::= "'a" [arity(0)]
     """)
   }
 
@@ -29,11 +29,11 @@ class TestConversion extends AbstractConversionTest {
       syntax Exp ::= "a" | "b"
       rule a => b
       """, """
-  syntax KLabel ::= "'b" [ arity(0)]
+  syntax KLabel ::= "'b" [arity(0)]
 
-  syntax KLabel ::= "'a" [ arity(0)]
+  syntax KLabel ::= "'a" [arity(0)]
 
-  rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag[Map('bag -> on)]</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag[Map('bag -> on)]</generatedTop>?>rule<? [ computational()]
+  rule <generatedTop>Bag(<k>'a:KItem~>GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag[bag]</generatedTop> => <generatedTop>Bag(<k>'b:KItem~>GeneratedFreshVar0:K</k>, GeneratedFreshVar1:Bag):Bag[bag]</generatedTop>?>rule<?[computational(), lookups([]), concreteDataStructureSize({})]
     """)
   }
 
@@ -48,11 +48,11 @@ class TestConversion extends AbstractConversionTest {
 
       configuration <k> $PGM </k>
 """, """
-  syntax KLabel ::= "'b" [ arity(0)]
+  syntax KLabel ::= "'b" [arity(0)]
 
-  syntax KLabel ::= "'a" [ arity(0)]
+  syntax KLabel ::= "'a" [arity(0)]
 
-  rule <generatedTop>Bag(<k>'a:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[Map('bag -> on)]</generatedTop> => <generatedTop>Bag(<k>'b:KItem⤳GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[Map('bag -> on)]</generatedTop>?>rule<? [ computational()]
+  rule <generatedTop>Bag(<k>'a:KItem~>GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[bag]</generatedTop> => <generatedTop>Bag(<k>'b:KItem~>GeneratedFreshVar2:K</k>, GeneratedFreshVar3:Bag):Bag[bag]</generatedTop>?>rule<?[computational(), lookups([]), concreteDataStructureSize({})]
 """)
   }
 }

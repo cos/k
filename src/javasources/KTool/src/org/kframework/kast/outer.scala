@@ -8,14 +8,6 @@ case class Definition(modules: Set[Module]) {
   override def toString = modules.mkString("\n\n\n")
 }
 
-case class AttributesDeclaration(attributes: Attributes) {
-  override def toString =
-    if (attributes.isEmpty)
-      ""
-    else
-      " [ " + attributes + "]"
-}
-
 case class Module(
   name: String,
   sentences: Set[Sentence]) {
@@ -25,11 +17,13 @@ case class Module(
 trait Sentence
 
 case class Rule(
+  label: String,
   body: Term,
   requires: Term,
   ensures: Term,
-  attributes: AttributesDeclaration) extends Sentence {
-  override def toString = "  rule " + body + "?>rule<?" + attributes
+  attributes: Attributes) extends Sentence {
+  override def toString = "  rule " + body + "?>rule<?" + (
+    if (attributes.isEmpty) "" else attributes)
 }
 
 case class Configuration(contents: Term) extends Sentence {
@@ -49,14 +43,22 @@ case class Syntax(sort: Sort, blocks: Seq[Block]) extends Sentence {
 trait ProductionItem
 
 trait Production {
-  val attributes: AttributesDeclaration
+  val attributes: Attributes
+  def getKLabel: String
 }
 
-case class NormalProduction(items: Seq[ProductionItem], attributes: AttributesDeclaration) extends Production {
-  override def toString = "" + items.mkString(" ") + attributes
+case class NormalProduction(items: Seq[ProductionItem], attributes: Attributes) extends Production {
+  override def toString = "" + items.mkString(" ") + (if (attributes.isEmpty) "" else " " + attributes)
+
+  def getKLabel = "'" + (items map {
+    case _: NonTerminal => "_"
+    case Terminal(value) => value
+  } mkString)
 }
 
-case class UserList(sort: Sort, separator: String, attributes: AttributesDeclaration) extends Production
+case class UserList(sort: Sort, separator: String, attributes: Attributes) extends Production {
+  def getKLabel = "'_" + separator + "_"
+}
 
 case class NonTerminal(name: String, sort: Sort) extends ProductionItem
 trait Regex

@@ -40,7 +40,7 @@ public class IndexingTable implements Serializable, RuleIndex{
     private List<Rule> unindexedRules;
     private final Definition definition;
 
-    private final Data data;
+    public final Data data;
 
     @Singleton
     public static class Data implements Serializable {

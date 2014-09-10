@@ -71,16 +71,18 @@ case class TestingCompiler(definitionText: String, mainModule: String) {
     mock(classOf[BuiltinFunction]), null,
     new KItemOperations(null, null, null))
 
-  lazy val kompiledKIL: kil.Definition = {
+  lazy val indexingTable = mock(classOf[backend.java.indexing.IndexingTable])
 
-    val symbolicBackend = new JavaSymbolicBackend(
-      mock(classOf[Stopwatch]),
-      context,
-      binaryLoader,
-      Providers.of(mock(classOf[backend.java.indexing.IndexingTable])),
-      Providers.of(mock(classOf[KILtoBackendJavaKILTransformer]))) {
-      override def lastStep(javaDef: kil.Definition): kil.Definition = javaDef
-    }
+  lazy val symbolicBackend = new JavaSymbolicBackend(
+    mock(classOf[Stopwatch]),
+    context,
+    binaryLoader,
+    Providers.of(indexingTable),
+    Providers.of(mock(classOf[KILtoBackendJavaKILTransformer]))) {
+    override def lastStep(javaDef: kil.Definition): kil.Definition = javaDef
+  }
+
+  lazy val kompiledKIL: kil.Definition = {
 
     try {
       symbolicBackend.getCompilationSteps().compile(parsedKIL, symbolicBackend.getDefaultStep())

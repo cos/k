@@ -8,9 +8,11 @@ trait Sorted {
   val sort: Sort
 }
 
-object Sort {
+object Sort extends Key[Sort] {
+  val key = 'sort
+
   implicit class SortedTerm(t: Term) extends Sorted {
-    val sort = Sort(t.attributes('sort))
+    val sort = t.attributes(Sort)
   }
 
   implicit def toSortedTermConstructor[Context](delegate: TermConstructor[Context]) = SortedTermConstructor(delegate)
@@ -23,7 +25,7 @@ case class SortedTermConstructor[Context](delegate: TermConstructor[Context]) {
     sort: Sort,
     attributes: Attributes)(
       implicit context: Context): Term = {
-    delegate(klabel, klist, attributes + ('sort -> sort.toString()))(context)
+    delegate(klabel, klist, attributes + (Sort -> sort))(context)
   }
 
   def apply(

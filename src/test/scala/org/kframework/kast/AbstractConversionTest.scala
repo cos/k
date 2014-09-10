@@ -3,6 +3,8 @@ package org.kframework.kast
 import org.kframework.kast.convertors.KILtoKAST
 import org.junit.Assert._
 import org.kframework.kast.convertors.KASTtoBackendKIL
+import org.kframework.backend.symbolic.SymbolicBackend
+import org.kframework.backend.java.symbolic.JavaSymbolicBackend
 
 class AbstractConversionTest extends JUnitTest {
 
@@ -26,7 +28,7 @@ class AbstractConversionTest extends JUnitTest {
 
   val junk = List(
     "configuration <generatedTop><k>$PGM:Bag</k></generatedTop>",
-    "syntax KLabel ::= \"'\" [ arity(0)]",
+    "syntax KLabel ::= \"'\" [arity(0)]",
     "syntax CellLabel ::= \"generatedTop\"",
     "syntax CellLabel ::= \"k\"") map ("\n  " + _ + "\n")
 
@@ -55,23 +57,26 @@ class AbstractConversionTest extends JUnitTest {
     println(actual)
     assertEquals(expected, actual)
 
-    converted
+    (converted, compiler)
   }
 
-  def assertKASTtoBackendKIL(kast: Definition, backendKILText: String) {
-    ???
+  def assertKASTtoBackendKIL(kast: Definition, backendKILText: String)(implicit compiler: TestingCompiler) {
+    import compiler._
+    val convertedBackendKIL = KASTtoBackendKIL(globalContext, context, indexingTable.data)(kast)
+    assertEquals(backendKILText, convertedBackendKIL.toString())
   }
 
   def assertFullConversion(kilText: String, kastText: String, backendKILText: String) {
-    val kast = assertKILtoKAST(kilText, kastText)
-    assertKASTtoBackendKIL(kast, backendKILText)
+    val (kast, compiler) = assertKILtoKAST(kilText, kastText)
+    assertKASTtoBackendKIL(kast, backendKILText)(compiler)
   }
 
   def assertConversion(kilText: String) {
     val fullKilModule = ensuredConfiguration(ensuredModule(kilText))
     val compiler = TestingCompiler(fullKilModule, moduleName)
+    import compiler._
     val kast = KILtoKAST(compiler.kompiledKIL)
-    val convertedBackendKIL = KASTtoBackendKIL(kast)
+    val convertedBackendKIL = KASTtoBackendKIL(compiler.globalContext, context, indexingTable.data)(kast)
     assertEquals(compiler.javaBackendKIL.toString(), convertedBackendKIL.toString())
   }
 }

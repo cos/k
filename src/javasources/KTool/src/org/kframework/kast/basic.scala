@@ -3,24 +3,31 @@ package org.kframework.kast
 trait Context
 
 object BasicConstructor extends TermConstructor[Context] {
+
+  object HookClass extends Key[String] { val key = 'hookClass }
+
   def apply(
     klabelString: String,
     klist: Seq[Term],
     attributes: Attributes)(
       implicit context: Context): Term = {
-    attributes.get('hookClass) match {
+    attributes.get(HookClass) match {
       case Some(className) =>
         Class.forName(className).getConstructor(classOf[String]).newInstance(klabelString).asInstanceOf[KLabel](klist, attributes)
       case None =>
         val klabel = klabelString match {
-          case "=>" => Rewrite
-          case "⤳" => KSeq
-          case "HOLE" => Hole
+          case Rewrite.name => Rewrite
+          case KSeq.name => KSeq
+          case Hole.name => Hole
           case _ =>
-            attributes.get('variable).map(on => Variable(klabelString, attributes))
-              .orElse(attributes.get('cell).map(on => CellLabel(klabelString)))
-              .orElse(attributes.get('bag).map(on => BagLabel(klabelString)))
-              .getOrElse(BlandKLabel(klabelString))
+            if (attributes(Flag('variable)))
+              Variable(klabelString, attributes)
+            else if (attributes(Flag('cell)))
+              CellLabel(klabelString)
+            else if (attributes(Flag('bag)))
+              BagLabel(klabelString)
+            else
+              BlandKLabel(klabelString)
         }
 
         klabel(klist, attributes)
@@ -33,6 +40,13 @@ object BasicConstructor extends TermConstructor[Context] {
     attributes: (Symbol, String)*)(
       implicit context: Context): Term = {
     apply(klabelString, klist, Attributes(attributes.toMap))
+  }
+}
+
+object Traversals {
+  def collectBF[T](f: PartialFunction[Term, T])(t: Term): Seq[T] = {
+    val l = t.klist flatMap collectBF(f)
+    f.lift(t).map(_ +: l).getOrElse(l)
   }
 }
 
@@ -53,22 +67,22 @@ case class Variable(name: String, val attributes: Attributes) extends KLabelTerm
     Variable(name, attributes)
   }
   override def toString = {
-    name + attributes.get('sort).map(":" + _).getOrElse("")
+    name + attributes.get(Sort).map(":" + _).getOrElse("")
   }
 }
 
-object Hole extends Term0 with KLabelTerm with SingletonTerm {
+object Hole extends Term0 with SingletonKLabelTerm {
   val name = "HOLE"
   val attributes = Attributes()
 }
 
 object KSeq extends KLabel {
-  val name = "⤳"
+  val name = "~>"
 }
 
 case class KSeq(klist: Seq[Term], attributes: Attributes) extends Term {
   val klabel = KSeq
-  override def toString = klist.mkString("⤳")
+  override def toString = klist.mkString(KSeq.name)
 }
 
 object Rewrite extends KLabel {
@@ -112,10 +126,10 @@ object Boolean {
     val klist = Seq(left, right)
   }
 
-  object True extends Term0 with KLabelTerm with SingletonTerm with NoAttributes {
+  object True extends Term0 with SingletonKLabelTerm with NoAttributes {
     val name = "true"
   }
-  object False extends Term0 with KLabelTerm with SingletonTerm with NoAttributes {
+  object False extends Term0 with SingletonKLabelTerm with NoAttributes {
     val name = "false"
   }
 }
@@ -143,3 +157,11 @@ case class BagLabel(name: String) extends KLabel {
 }
 
 case class Bag(klabel: BagLabel, klist: Seq[Term], attributes: Attributes) extends Term
+
+case class SetLabel(name: String) extends KLabel {
+  def apply(klist: Seq[Term], attributes: Attributes): Set = Set(this, klist.toSet, attributes)
+}
+
+case class Set(klabel: SetLabel, set: collection.Set[Term], attributes: Attributes) extends Term {
+  lazy val klist = set.toSeq.sortBy(_.toString)
+} 

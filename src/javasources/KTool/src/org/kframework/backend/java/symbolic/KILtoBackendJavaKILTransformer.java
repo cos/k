@@ -43,6 +43,8 @@ import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.kil.Token;
 import org.kframework.backend.java.kil.Variable;
+import org.kframework.kast.convertors.KASTtoBackendKIL;
+import org.kframework.kast.convertors.KILtoKAST;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
 import org.kframework.kil.BoolBuiltin;
@@ -110,7 +112,11 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
     }
 
     public Definition transformDefinition(org.kframework.kil.Definition node) {
-        Definition transformedDef = (Definition) this.visitNode(node);
+        org.kframework.kast.Definition kastDefinition = KILtoKAST.apply(node);
+        KASTtoBackendKIL kastConvertor = new KASTtoBackendKIL(globalContext, context, indexingData);
+        Definition transformedDef = kastConvertor.apply(kastDefinition);
+        //        Definition transformedDef = (Definition) this.visitNode(node);
+        
         globalContext.setDefinition(transformedDef);
 
         Definition expandedDefinition = new MacroExpander(TermContext.of(globalContext)).processDefinition();

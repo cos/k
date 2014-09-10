@@ -2,11 +2,22 @@ package org.kframework.kast
 
 import shapeless._
 
+object KLabel {
+  def unapply(klabel: KLabel): Option[String] = Some(klabel.name)
+}
+
 trait KLabel {
   val name: String
   def apply(klist: Seq[Term], attributes: Attributes): Term
 
   override def toString = name
+}
+
+object Term {
+  def unapply(t: Term): Option[(KLabel, Seq[Term], Attributes)] = {
+    import t._
+    Some((klabel, klist, attributes))
+  }
 }
 
 trait Term {
@@ -15,44 +26,17 @@ trait Term {
   val attributes: Attributes
 
   def copy(klist: Seq[Term] = klist, attributes: Attributes = attributes): Term = klabel(klist, attributes)
-  
+
   override def toString = {
     val klistString = if (klist.isEmpty) "" else "(" + klist.toList.sortBy(_.toString).mkString(", ") + ")"
 
-    val cleanAttributes = (attributes.a.filter({ case (k, _) => k != 'sort }))
-    val attributesString = if (cleanAttributes.isEmpty) "" else ("[" + cleanAttributes.toString() + "]")
+    val cleanAttributes = (Attributes(attributes.a.filter({ case (k, _) => k != 'sort })))
+    val attributesString = if (cleanAttributes.isEmpty) "" else cleanAttributes
 
-    val sortString = attributes.get('sort).map(":" + _).getOrElse("")
+    val sortString = attributes.get(Sort).map(":" + _).getOrElse("")
 
     klabel.name + klistString + sortString + attributesString
   }
-}
-
-object Attributes {
-  val on = "on"
-  def apply(): Attributes = Attributes(Map())
-}
-
-case class Attributes(a: Map[Symbol, String]) {
-  import Attributes._
-
-  override def toString = a.map({
-    case (k, v) =>
-      if (v == on)
-        k.name
-      else
-        k.name + "(" + v + ")"
-  }).mkString(", ")
-
-  def isEmpty = a.isEmpty
-
-  def +(s: Symbol) = Attributes(a + (s -> on))
-  def +(t: (Symbol, String)) = Attributes(a + t)
-
-  def ++(other: Attributes) = Attributes(a ++ other.a)
-
-  def apply(s: Symbol): String = a(s)
-  def get(s: Symbol): Option[String] = a.get(s)
 }
 
 class WrongNumberOfChildrenException(actual: Int, expected: Int) extends RuntimeException(s"Wrong number of children. Actual: $actual Expected:$expected")
@@ -75,7 +59,7 @@ trait KLabelTerm extends KLabel with Term {
   final val klabel = this
 }
 
-trait SingletonTerm extends Term {
+trait SingletonKLabelTerm extends KLabelTerm {
   def apply(klist: Seq[Term], attributes: Attributes): Term = this
 }
 

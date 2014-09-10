@@ -12,7 +12,7 @@ import org.kframework.kast.Boolean
 import org.kframework.kast.Context
 import org.kframework.kast.Sentence
 
-object KILtoKAST extends Function1[kil.Definition, kast.Definition] { 
+object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
 
   val Term = kast.SortedTermConstructor(kast.BasicConstructor)
 
@@ -28,7 +28,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
     kast.Attributes(n map {
       case (_, v) => (Symbol(v.getKey().toString),
         if (v.getValue() == null)
-          Attributes.on
+          true
         else
           v.getValue().toString)
     } toMap)
@@ -241,7 +241,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
         case l: kil.Lexical => convert(l)
         case t: kil.Terminal => convert(t)
         case nt: kil.NonTerminal => convert(nt)
-      }, kast.AttributesDeclaration(convert(n.getAttributes())))
+      }, convert(n.getAttributes()))
       case x => println(x.getClass()); ???
     }
   }
@@ -262,12 +262,25 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
     ???
   }
 
+  object Lookups extends kast.Key[java.util.List[kil.BuiltinLookup]] {
+    val key = 'lookups
+  }
+
+  object ConcreteDataStructureSize extends kast.Key[java.util.Map[kil.Variable, Integer]] {
+    val key = 'concreteDataStructureSize
+  }
+
   def convert(n: kil.Rule): kast.Rule = {
+    val attributes = convert(n.getAttributes())
+
     kast.Rule(
+      label = n.getLabel(),
       body = convert(n.getBody()),
       requires = Option(convert(n.getRequires())).getOrElse(Boolean.True),
       ensures = Option(convert(n.getEnsures())).getOrElse(Boolean.True),
-      attributes = kast.AttributesDeclaration(convert(n.getAttributes())))
+      attributes
+        + (Lookups -> n.getLookups())
+        + (ConcreteDataStructureSize -> n.getConcreteDataStructureSize()))
   }
 
   def convert(n: kil.Sentence): Return = {
@@ -301,11 +314,11 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
 
   implicit def convert(n: kil.Term): kast.Term = n match {
     // fundamental
-    case rw: kil.Rewrite => Term("=>", Seq(rw.getLeft(), rw.getRight()) map convert, rw.getSort(), rw.getAttributes())
-    case kseq: kil.KSequence => Term("⤳", kseq.getContents() map convert, kseq.getSort(), kseq.getAttributes())
-    case t: kil.Hole => Term("HOLE", Seq(), t.getSort())
+    case rw: kil.Rewrite => Term(kast.Rewrite.name, Seq(rw.getLeft(), rw.getRight()) map convert, rw.getSort(), rw.getAttributes())
+    case kseq: kil.KSequence => Term(kast.KSeq.name, kseq.getContents() map convert, kseq.getSort(), kseq.getAttributes())
+    case t: kil.Hole => Term(kast.Hole.name, Seq(), t.getSort())
     case variable: kil.Variable =>
-      Term(variable.fullName(), Seq(), variable.getSort(), variable.getAttributes() + 'variable)
+      Term(variable.fullName(), Seq(), variable.getSort(), variable.getAttributes() + kast.Flag('variable))
 
     // cell
     case cell: kil.Cell =>
@@ -313,10 +326,10 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
       Term(cell.getLabel(),
         Seq(convert(cell.getContents())),
         convert(cell.getSort()),
-        attributes + 'cell)
+        attributes + kast.Flag('cell))
 
     // collections
-    case bag: kil.Bag => Term("Bag", bag.getContents() map convert, bag.getSort(), bag.getAttributes() + 'bag)
+    case bag: kil.Bag => Term("Bag", bag.getContents() map convert, bag.getSort(), bag.getAttributes() + kast.Flag('bag))
 
     // kapp 
     case kapp: kil.KApp => Term(kapp.getLabel().toString(), convert(kapp.getChild().asInstanceOf[kil.KList]), kapp.getSort(), kapp.getAttributes())
@@ -340,7 +353,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
   }
 
   def convert(n: kil.UserList): kast.UserList = {
-    kast.UserList(n.getSort(), n.getSeparator(), kast.AttributesDeclaration(convert(n.getAttributes())))
+    kast.UserList(n.getSort(), n.getSeparator(), convert(n.getAttributes()))
   }
 
   implicit def convert(n: kil.Sort): kast.Sort = kast.Sort(n.getName())
