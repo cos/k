@@ -1,7 +1,5 @@
 package org.kframework.kast
 
-import shapeless._
-
 object KLabel {
   def unapply(klabel: KLabel): Option[String] = Some(klabel.name)
 }

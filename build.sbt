@@ -6,24 +6,45 @@ scalaVersion := "2.10.4"
 
 resolvers ++= Seq(
   Resolver.sonatypeRepo("releases"),
-  Resolver.sonatypeRepo("snapshots")
+  Resolver.sonatypeRepo("snapshots"),
+  "Runtime Verification" at "http://office.runtimeverification.com:8888/repository/internal",
+  "Runtime Verification Snapshots" at "http://office.runtimeverification.com:8888/repository/snapshots"
 )
 
-libraryDependencies +=  "com.chuusai" % "shapeless_2.10.4" % "2.0.0"
+libraryDependencies ++= Seq(
+    "com.google.guava" % "guava" % "[14.0.1,)",
+	"com.google.inject" % "guice" % "[3.0,)",
+	"com.google.inject.extensions" % "guice-multibindings" % "[3.0,)",
+	"net.sf.jung" % "jung-api" % "[2.0.1,)",
+	"org.apache.commons" % "commons-lang3" % "[3.3.2,)",
+	"org.apache.commons" % "commons-collections4" % "[4.0,)",
+	"commons-io" % "commons-io" % "2.4",	
+	"net.sf.jung" % "jung-visualization" % "[2.0.1,)",
+	"net.sf.jung" % "jung-algorithms" % "[2.0.1,)",
+	"org.kframework.dependencies" % "jcommander" % "[1.35-custom,)",
+	"net.sf.jung" % "jung-graph-impl" % "[2.0.1,)",
+	"org.kframework.mpfr_java" % "mpfr_java" % "1.0-SNAPSHOT",
+	"org.kframework.mpfr_java" % "mpfr_java" % "1.0-SNAPSHOT", //<classifier>${native.classifier}</classifier>,
+	"net.sf.jung" % "jung-io" % "[2.0.1,)",
+	"org.fusesource.jansi" % "jansi" % "[1.11,)",
+	"jline" % "jline" % "0.9.94",
+	"org.pcollections" % "pcollections" % "[2.1.2,)",
+	"com.googlecode.java-diff-utils" % "diffutils" % "[1.3.0,)",
+	"uk.com.robust-it" % "cloning" % "[1.9.0,)",
+	"junit" % "junit" % "[4.11,)",
+	"org.mockito" % "mockito-all" % "[1.9.5,)",
+	"org.kframework.dependencies" % "strategoxt" % "[1.0,)",
+	"com.microsoft.z3" % "com.microsoft.z3" % "[4.3.2.5a45711f22d9,)",
+	"com.microsoft.z3" % "libz3java" % "[4.3.2.5a45711f22d9,)", // <type>${native.library.type}</type><classifier>${native.classifier}</classifier>
+	"com.microsoft.z3" % "libz3" % "[4.3.2.5a45711f22d9,)",  //<type>${native.library.type} </type><classifier>${native.classifier}</classifier>
+	"org.kframework.dependencies" % "maude" % "[2.6,)",
+	"org.kframework.dependencies" % "gappa" % "[1.0,)", // <type>${native.exe.type}</type><classifier>${native.os.classifier}</classifier>
+	"org.kframework.dependencies" % "sdf2table" % "[1.0,)", //<type>${native.exe.type}</type><classifier>${native.os.classifier}</classifier>
+	"org.kframework.dependencies" % "strj" % "[1.0,)", // <scope>provided</scope>
+	"org.kframework.dependencies" % "implodePT" % "[1.0,)") // <type>${native.exe.type}</type><classifier>${native.os.classifier}</classifier><scope>provided</scope>
 
-lazy val kToolDirectory = settingKey[File]("K tool directory")
+net.virtualvoid.sbt.graph.Plugin.graphSettings
 
-kToolDirectory := baseDirectory.value / "src" / "javasources" / "KTool"
+unmanagedSourceDirectories in Compile += baseDirectory.value / "target" / "generated-sources" / "javacc"
 
-// I'm sneaky and allow Scala
-
-javaSource in Compile := kToolDirectory.value / "src"
-
-scalaSource in Compile := kToolDirectory.value / "src"
-
-// Linking the precompiled jars.
-// This will need to be replaced with grabbing them from a remote repo.
-
-unmanagedBase := baseDirectory.value / "lib" / "java"
-
-unmanagedJars in Compile ++= Classpaths.findUnmanagedJars((configuration in Compile).value, kToolDirectory.value / "lib", includeFilter in (Compile, unmanagedJars) value, excludeFilter in (Compile, unmanagedJars) value)
+unmanagedSourceDirectories in Compile += baseDirectory.value / "target" / "generated-sources" / "sdf"

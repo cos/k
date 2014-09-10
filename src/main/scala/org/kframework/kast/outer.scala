@@ -30,6 +30,10 @@ case class Configuration(contents: Term) extends Sentence {
   override def toString = "  configuration " + contents
 }
 
+case class ModuleComment(comment: String) extends Sentence {
+  
+}
+
 case class Import(what: String) extends Sentence
 
 object Associativity extends Enumeration {

@@ -14,6 +14,7 @@
         <all-programs>
             <krun-option name="--output" value="none" />
             <krun-option name="--smt" value="none" />
+            <krun-option name="--debug" value="true" />            
         </all-programs>
     </test>
 </tests>

@@ -1,2 +1,6 @@
 
 addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.5.0")
+
+addSbtPlugin("de.johoop" % "ant4sbt" % "1.1.2")
+
+addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.7.4")

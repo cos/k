@@ -158,10 +158,10 @@ case class BagLabel(name: String) extends KLabel {
 
 case class Bag(klabel: BagLabel, klist: Seq[Term], attributes: Attributes) extends Term
 
-case class SetLabel(name: String) extends KLabel {
-  def apply(klist: Seq[Term], attributes: Attributes): Set = Set(this, klist.toSet, attributes)
-}
-
-case class Set(klabel: SetLabel, set: collection.Set[Term], attributes: Attributes) extends Term {
-  lazy val klist = set.toSeq.sortBy(_.toString)
-} 
+//case class SetLabel(name: String) extends KLabel {
+//  def apply(klist: Seq[Term], attributes: Attributes): Set = Set(this, klist.toSet, attributes)
+//}
+//
+//case class Set(klabel: SetLabel, set: collection.Set[Term], attributes: Attributes) extends Term {
+//  lazy val klist = set.toSeq.sortBy(_.toString)
+//} 

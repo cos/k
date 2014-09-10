@@ -175,7 +175,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
     ???
   }
 
-  def convert(n: kil.LiterateModuleComment): Return = {
+  def convert(n: kil.LiterateModuleComment): kast.ModuleComment = {
     ???
   }
 
@@ -197,6 +197,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
       case n: kil.Syntax => convert(n)
       case n: kil.Rule => convert(n)
       case n: kil.Configuration => convert(n)
+      case n: kil.LiterateModuleComment => convert(n)
     })
     kast.Module(n.getName(), moduleItems.toSet)
   }
@@ -278,9 +279,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.Definition] {
       body = convert(n.getBody()),
       requires = Option(convert(n.getRequires())).getOrElse(Boolean.True),
       ensures = Option(convert(n.getEnsures())).getOrElse(Boolean.True),
-      attributes
-        + (Lookups -> n.getLookups())
-        + (ConcreteDataStructureSize -> n.getConcreteDataStructureSize()))
+      attributes)
   }
 
   def convert(n: kil.Sentence): Return = {

@@ -6,9 +6,13 @@ import org.kframework.kast.convertors.KASTtoBackendKIL
 import org.kframework.backend.symbolic.SymbolicBackend
 import org.kframework.backend.java.symbolic.JavaSymbolicBackend
 
+import org.junit.rules.TestName;
+
 class AbstractConversionTest extends JUnitTest {
 
-  def moduleName = name.getMethodName().replace("name", "").toUpperCase
+  def moduleName = {
+    this.name.getMethodName().replace("name", "").toUpperCase
+  }
 
   def ensuredModule(s: String): String =
     if (!s.trim.startsWith("module"))

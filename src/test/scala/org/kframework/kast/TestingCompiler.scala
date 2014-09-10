@@ -35,7 +35,7 @@ case class TestingCompiler(definitionText: String, mainModule: String) {
   utils.general.GlobalSettings.kem = kem
   val context = new kil.loader.Context()
   context.globalOptions = globalOptions
-  OS.current().libDir = "lib/native/macosx"
+  OS.current().binDir = "target/sdf/bin"
 
   val testDir = Files.createTempDirectory("test")
 

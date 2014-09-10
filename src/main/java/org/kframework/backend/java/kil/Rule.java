@@ -99,9 +99,9 @@ public class Rule extends JavaSymbolicObject {
             String label,
             Term leftHandSide,
             Term rightHandSide,
-            Collection<Term> requires,
-            Collection<Term> ensures,
-            Collection<Variable> freshVariables,
+            java.util.Collection<Term> requires,
+            java.util.Collection<Term> ensures,
+            java.util.Collection<Variable> freshVariables,
             UninterpretedConstraint lookups,
             boolean compiledForFastRewriting,
             Map<CellLabel, Term> lhsOfReadCells,
@@ -139,7 +139,7 @@ public class Rule extends JavaSymbolicObject {
                     IndexingPair.getInstreamIndexingPair(streamList, definition) :
                     IndexingPair.getOutstreamIndexingPair(streamList, definition);
         } else {
-            Collection<IndexingPair> indexingPairs = leftHandSide.getKCellIndexingPairs(definition);
+            java.util.Collection<IndexingPair> indexingPairs = leftHandSide.getKCellIndexingPairs(definition);
 
             /*
              * Compute indexing information only if the left-hand side of this rule has precisely one

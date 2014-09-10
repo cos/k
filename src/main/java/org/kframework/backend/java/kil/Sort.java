@@ -86,7 +86,7 @@ public final class Sort implements MaximalSharing, Serializable {
         return of(sort.getName());
     }
 
-    public static Set<Sort> of(Collection<org.kframework.kil.Sort> sorts) {
+    public static Set<Sort> of(java.util.Collection<org.kframework.kil.Sort> sorts) {
         ImmutableSet.Builder<Sort> builder = ImmutableSet.builder();
         for (org.kframework.kil.Sort name : sorts) {
             builder.add(Sort.of(name.getName()));
