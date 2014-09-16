@@ -33,3 +33,7 @@ case class Attributes(a: Map[Symbol, Any]) {
   }
   def get[V](key: Key[V]): Option[V] = a.get(key.key).asInstanceOf[Option[V]]
 }
+
+trait NoAttributes {
+  lazy val attributes = Attributes()
+}

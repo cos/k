@@ -26,7 +26,20 @@
       <snapshots><enabled>true</enabled></snapshots>
       <releases><enabled>false</enabled></releases>
     </repository>
+    <repository>
+      <id>scala-tools.org</id>
+      <name>Scala-tools Maven2 Repository</name>
+      <url>http://scala-tools.org/repo-releases</url>
+    </repository>    
   </repositories>
+  
+  <pluginRepositories>
+    <pluginRepository>
+      <id>scala-tools.org</id>
+      <name>Scala-tools Maven2 Repository</name>
+      <url>http://scala-tools.org/repo-releases</url>
+    </pluginRepository>
+  </pluginRepositories>  
 
   <properties>
     <sdf.resource.dir>${basedir}/src/main/sdf/syntax</sdf.resource.dir>
@@ -37,13 +50,19 @@
     <base>unified-builtins2</base>
     <skipCheckstyleOnWindows>true</skipCheckstyleOnWindows>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <scala.version>2.10.4</scala.version>    
   </properties>
 
   <dependencies>
     <dependency>
+      <groupId>org.scala-lang</groupId>
+      <artifactId>scala-library</artifactId>
+      <version>${scala.version}</version>
+    </dependency>  
+    <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>14.0.1</version>
+      <version>18.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.inject</groupId>
@@ -226,6 +245,11 @@
     </resources>
     <pluginManagement>
       <plugins>
+	    <plugin>
+          <groupId>net.alchim31.maven</groupId>
+          <artifactId>scala-maven-plugin</artifactId>
+          <version>3.2.0</version>
+        </plugin>
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.1</version>
@@ -239,9 +263,137 @@
           <artifactId>maven-resources-plugin</artifactId>
           <version>2.6</version>
         </plugin>
+        <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
+        <plugin>
+        	<groupId>org.eclipse.m2e</groupId>
+        	<artifactId>lifecycle-mapping</artifactId>
+        	<version>1.0.0</version>
+        	<configuration>
+        		<lifecycleMappingMetadata>
+        			<pluginExecutions>
+        				<pluginExecution>
+        					<pluginExecutionFilter>
+        						<groupId>
+        							org.apache.maven.plugins
+        						</groupId>
+        						<artifactId>
+        							maven-dependency-plugin
+        						</artifactId>
+        						<versionRange>[2.8,)</versionRange>
+        						<goals>
+        							<goal>copy-dependencies</goal>
+        							<goal>copy</goal>
+        							<goal>unpack-dependencies</goal>
+        						</goals>
+        					</pluginExecutionFilter>
+        					<action>
+        						<ignore></ignore>
+        					</action>
+        				</pluginExecution>
+        				<pluginExecution>
+        					<pluginExecutionFilter>
+        						<groupId>net.alchim31.maven</groupId>
+        						<artifactId>
+        							scala-maven-plugin
+        						</artifactId>
+        						<versionRange>[3.2.0,)</versionRange>
+        						<goals>
+        							<goal>testCompile</goal>
+        							<goal>add-source</goal>
+        							<goal>compile</goal>
+        						</goals>
+        					</pluginExecutionFilter>
+        					<action>
+        						<ignore></ignore>
+        					</action>
+        				</pluginExecution>
+        				<pluginExecution>
+        					<pluginExecutionFilter>
+        						<groupId>
+        							org.apache.maven.plugins
+        						</groupId>
+        						<artifactId>
+        							maven-antrun-plugin
+        						</artifactId>
+        						<versionRange>[1.7,)</versionRange>
+        						<goals>
+        							<goal>run</goal>
+        						</goals>
+        					</pluginExecutionFilter>
+        					<action>
+        						<ignore></ignore>
+        					</action>
+        				</pluginExecution>
+        				<pluginExecution>
+        					<pluginExecutionFilter>
+        						<groupId>org.codehaus.mojo</groupId>
+        						<artifactId>
+        							build-helper-maven-plugin
+        						</artifactId>
+        						<versionRange>[1.9,)</versionRange>
+        						<goals>
+        							<goal>add-source</goal>
+        						</goals>
+        					</pluginExecutionFilter>
+        					<action>
+        						<ignore></ignore>
+        					</action>
+        				</pluginExecution>
+        				<pluginExecution>
+        					<pluginExecutionFilter>
+        						<groupId>org.codehaus.mojo</groupId>
+        						<artifactId>
+        							javacc-maven-plugin
+        						</artifactId>
+        						<versionRange>[2.6,)</versionRange>
+        						<goals>
+        							<goal>javacc</goal>
+        						</goals>
+        					</pluginExecutionFilter>
+        					<action>
+        						<ignore></ignore>
+        					</action>
+        				</pluginExecution>
+        			</pluginExecutions>
+        		</lifecycleMappingMetadata>
+        	</configuration>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
+      <plugin>
+        <groupId>net.alchim31.maven</groupId>
+        <artifactId>scala-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>scala-compile-first</id>
+						<phase>process-resources</phase>
+						<goals>
+						    <goal>add-source</goal>
+							<goal>compile</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>scala-test-compile</id>
+						<phase>process-test-resources</phase>
+						<goals>
+							<goal>testCompile</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>    
+            <plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<executions>
+					<execution>
+						<phase>compile</phase>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
       <plugin>
         <artifactId>maven-install-plugin</artifactId>
         <version>2.5.1</version>
@@ -371,6 +523,7 @@
             </goals>
             <configuration>
               <sources>
+              	<source>src/main/scala</source>
                 <source>${stratego.src.dir}</source>
               </sources>
             </configuration>
@@ -381,7 +534,6 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>2.17</version>
 	<configuration>
-          <workingDirectory>src/test/resources</workingDirectory>
           <environmentVariables>
             <LD_LIBRARY_PATH>${env.LD_LIBRARY_PATH}${path.separator}${project.build.directory}/lib/native</LD_LIBRARY_PATH>
             <DYLD_LIBRARY_PATH>${env.DYLD_LIBRARY_PATH}${path.separator}${project.build.directory}/lib/native</DYLD_LIBRARY_PATH>

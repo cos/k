@@ -4,18 +4,20 @@ case class Sort(name: String) {
   override def toString = name
 }
 
-trait Sorted {
+trait HasSort {
   val sort: Sort
 }
 
-object Sort extends Key[Sort] {
-  val key = 'sort
-
-  implicit class SortedTerm(t: Term) extends Sorted {
+object HasSort {
+  implicit class SortedTerm(t: Term) extends HasSort {
     val sort = t.attributes(Sort)
   }
 
   implicit def toSortedTermConstructor[Context](delegate: TermConstructor[Context]) = SortedTermConstructor(delegate)
+}
+
+object Sort extends Key[Sort] {
+  val key = 'sort
 }
 
 case class SortedTermConstructor[Context](delegate: TermConstructor[Context]) {

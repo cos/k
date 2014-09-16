@@ -1,6 +1,12 @@
-name := "K"
+import AssemblyKeys._ 
 
-version := "3.0"
+assemblySettings
+
+organization := "org.kframework.k"
+
+name := "k"
+
+version := "3.5-SNAPSHOT"
 
 scalaVersion := "2.10.4"
 
@@ -12,7 +18,7 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-    "com.google.guava" % "guava" % "[14.0.1,)",
+    "com.google.guava" % "guava" % "[18.0,)",
 	"com.google.inject" % "guice" % "[3.0,)",
 	"com.google.inject.extensions" % "guice-multibindings" % "[3.0,)",
 	"net.sf.jung" % "jung-api" % "[2.0.1,)",
@@ -48,3 +54,37 @@ net.virtualvoid.sbt.graph.Plugin.graphSettings
 unmanagedSourceDirectories in Compile += baseDirectory.value / "target" / "generated-sources" / "javacc"
 
 unmanagedSourceDirectories in Compile += baseDirectory.value / "target" / "generated-sources" / "sdf"
+
+unmanagedResourceDirectories in Compile += baseDirectory.value / "src" / "main" / "sdf" / "syntax"
+
+EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.Resource
+
+classDirectory in Compile := target.value / "classes"
+
+mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
+  {
+    case PathList(ps @ _*) if ps.contains("hawtjni-runtime") => MergeStrategy.first
+    case PathList(ps @ _*) if ps.contains("junit") => MergeStrategy.first
+    case PathList(ps @ _*) if ps.contains("hamcrest") => MergeStrategy.first
+    case PathList(ps @ _*) if ps.contains("objenesis") => MergeStrategy.first
+    case PathList(ps @ _*) if ps.contains("strategoxt") => MergeStrategy.first
+    case PathList(ps @ _*) if ps.contains("run.class") => MergeStrategy.first
+    case PathList(ps @ _*) if ps.contains("start.class") => MergeStrategy.first
+    case x => old(x)
+  }
+}
+
+mainClass := Some("org.kframework.main.Main")
+
+lazy val releaseDirectory = settingKey[File]("An example task")
+
+releaseDirectory := target.value / "release" / "k"
+
+lazy val copyBin = taskKey[Unit]("Copy bin directory")
+
+copyBin := {
+	IO.copyDirectory(sourceDirectory.value / "main" / "scripts" / "bin", releaseDirectory.value / "bin")	
+}
+
+outputPath in assembly := releaseDirectory.value / "lib" / "java" / (name.value + "-" + version.value + ".jar")
+

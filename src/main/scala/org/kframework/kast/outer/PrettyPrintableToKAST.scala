@@ -1,4 +1,4 @@
-package org.kframework.kast
+package org.kframework.kast.outer
 
 trait PrettyPrintable {
   def pp: String

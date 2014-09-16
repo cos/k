@@ -25,7 +25,13 @@ object BasicConstructor extends TermConstructor[Context] {
             else if (attributes(Flag('cell)))
               CellLabel(klabelString)
             else if (attributes(Flag('bag)))
-              BagLabel(klabelString)
+              BuiltinBagLabel(klabelString)
+            else if (attributes(Flag('map)))
+              BuiltinMapLabel(klabelString)
+            else if (attributes(Flag('list)))
+              BuiltinListLabel(klabelString)
+            else if (attributes(Flag('set)))
+              BuiltinSetLabel(klabelString)
             else
               BlandKLabel(klabelString)
         }
@@ -99,9 +105,6 @@ case class Rewrite(left: Term, right: Term, attributes: Attributes) extends {
   override def toString = left + " => " + right
 }
 
-////////
-import Definition._
-
 object Boolean {
   val Boolean = Sort("Boolean")
   object And extends KLabel {
@@ -152,11 +155,51 @@ case class Cell(klabel: CellLabel, content: Term, attributes: Attributes) extend
   override def toString = "<" + klabel.name + ">" + content + "</" + name + ">"
 }
 
-case class BagLabel(name: String) extends KLabel {
-  def apply(klist: Seq[Term], attributes: Attributes): Bag = Bag(this, klist, attributes)
+case class BuiltinBagLabel(name: String) extends KLabel {
+  def apply(klist: Seq[Term], attributes: Attributes): BuiltinBag = BuiltinBag(this, klist, attributes)
 }
 
-case class Bag(klabel: BagLabel, klist: Seq[Term], attributes: Attributes) extends Term
+case class BuiltinBag(klabel: BuiltinBagLabel, klist: Seq[Term], attributes: Attributes) extends Term
+
+object BuiltinTuple2Label extends KLabel {
+  val name = "KTuple2"
+
+  def apply(klist: Seq[Term], attributes: Attributes): BuiltinTuple2 = klist match {
+    case Seq(_1, _2) => BuiltinTuple2(_1, _2)
+  }
+}
+
+case class BuiltinTuple2(_1: Term, _2: Term) extends Term {
+  val klabel = BuiltinTuple2Label
+  val klist = Seq(_1, _2)
+  val attributes = Attributes()
+}
+
+case class BuiltinMapLabel(name: String) extends KLabel {
+  def apply(klist: Seq[Term], attributes: Attributes): BuiltinMap = {
+    val pairs = klist map { case BuiltinTuple2(_1, _2) => (_1, _2) } toMap
+
+    BuiltinMap(this, pairs, attributes)
+  }
+}
+
+case class BuiltinMap(klabel: BuiltinMapLabel, map: Map[Term, Term], attributes: Attributes) extends Term {
+  val klist = map.toSeq.map { case (_1, _2) => BuiltinTuple2(_1, _2) }
+}
+
+case class BuiltinListLabel(name: String) extends KLabel {
+  def apply(klist: Seq[Term], attributes: Attributes): BuiltinList = BuiltinList(this, klist, attributes)
+}
+
+case class BuiltinList(klabel: BuiltinListLabel, klist: Seq[Term], attributes: Attributes) extends Term
+
+case class BuiltinSetLabel(name: String) extends KLabel {
+  def apply(klist: Seq[Term], attributes: Attributes): BuiltinSet = BuiltinSet(this, klist toSet, attributes)
+}
+
+case class BuiltinSet(klabel: BuiltinSetLabel, set: Set[Term], attributes: Attributes) extends Term {
+  val klist = set.toList.sortBy(_.toString)
+}
 
 //case class SetLabel(name: String) extends KLabel {
 //  def apply(klist: Seq[Term], attributes: Attributes): Set = Set(this, klist.toSet, attributes)

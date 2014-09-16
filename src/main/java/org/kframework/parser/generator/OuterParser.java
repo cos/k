@@ -2,6 +2,7 @@
 package org.kframework.parser.generator;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -91,8 +92,8 @@ public class OuterParser {
         file = new File(JarInfo.getKBase(false) + "/include/" + fileName);
         if (file.exists())
             return file;
-
-        return null;
+        else
+            throw new FileNotFoundException("Could not find: "+file.getAbsolutePath());
     }
 
     private void slurp2(File file, Context context) throws IOException {

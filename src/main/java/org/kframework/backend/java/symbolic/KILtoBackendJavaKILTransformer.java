@@ -113,7 +113,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
     }
 
     public Definition transformDefinition(org.kframework.kil.Definition node) {
-        org.kframework.kast.Definition kastDefinition = KILtoKAST.apply(node);
+        org.kframework.kast.outer.Definition kastDefinition = KILtoKAST.apply(node);
         KASTtoBackendKIL kastConvertor = new KASTtoBackendKIL(globalContext, context, indexingData);
         Definition transformedDef = kastConvertor.apply(kastDefinition);
         //        Definition transformedDef = (Definition) this.visitNode(node);

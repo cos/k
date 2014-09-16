@@ -64,7 +64,7 @@ class AbstractConversionTest extends JUnitTest {
     (converted, compiler)
   }
 
-  def assertKASTtoBackendKIL(kast: Definition, backendKILText: String)(implicit compiler: TestingCompiler) {
+  def assertKASTtoBackendKIL(kast: outer.Definition, backendKILText: String)(implicit compiler: TestingCompiler) {
     import compiler._
     val convertedBackendKIL = KASTtoBackendKIL(globalContext, context, indexingTable.data)(kast)
     assertEquals(backendKILText, convertedBackendKIL.toString())

@@ -44,7 +44,7 @@ public class ConfigFileParser {
         // validate xml file structure
         Source schemaFile = new StreamSource(getClass().getResourceAsStream("ktest.xsd"));
         Source xmlFile = new StreamSource(configFile);
-        SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.XML_NS_URI);
+        SchemaFactory schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
         Schema schema = schemaFactory.newSchema(schemaFile);
         Validator validator = schema.newValidator();
         try {

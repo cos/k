@@ -12,9 +12,11 @@ import org.kframework.kast
 import org.kframework.backend.java.symbolic.MacroExpander
 import org.kframework.backend.java.kil.TermContext
 import org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer
+import com.google.common.collect.ArrayListMultimap
+import com.google.common.collect.Lists
 
-case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, indexingData: IndexingTable.Data) extends Function1[kast.Definition, kil.Definition] {
-  def apply(d: kast.Definition): kil.Definition = {
+case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, indexingData: IndexingTable.Data) extends Function1[kast.outer.Definition, kil.Definition] {
+  def apply(d: kast.outer.Definition): kil.Definition = {
     val definition = new kil.Definition(context, indexingData)
     globalContext.setDefinition(definition)
 
@@ -22,11 +24,11 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
 
     val singletonModule = d.modules.head
     singletonModule.sentences foreach {
-      case r: kast.Rule if !r.attributes(kast.Flag(Symbol(org.kframework.kil.Attribute.PREDICATE_KEY))) => definition.addRule(apply(r))
+      case r: kast.outer.Rule if !r.attributes(kast.Flag(Symbol(org.kframework.kil.Attribute.PREDICATE_KEY))) => definition.addRule(apply(r))
       case _ =>
     }
     singletonModule.sentences collect {
-      case kast.Syntax(_, blocks) => blocks flatMap {
+      case kast.outer.Syntax(_, blocks) => blocks flatMap {
         _.productions map { _.getKLabel }
       }
     }
@@ -34,20 +36,19 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
     definition
   }
 
-  
-//  commented the code below because it is left untranslated in KILTOBackendKILTransformer
-//  def postProcessing(d: kil.Definition): kil.Definition = {
-//    globalContext.setDefinition(d);
-//
-//    val expandedDefinition = new MacroExpander(TermContext.of(globalContext)).processDefinition();
-//    globalContext.setDefinition(expandedDefinition);
-//
-//    val evaluatedDefinition = KILtoBackendJavaKILTransformer.evaluateDefinition(globalContext);
-//    globalContext.setDefinition(evaluatedDefinition);
-//    evaluatedDefinition;
-//  }
+  //  commented the code below because it is left untranslated in KILTOBackendKILTransformer
+  //  def postProcessing(d: kil.Definition): kil.Definition = {
+  //    globalContext.setDefinition(d);
+  //
+  //    val expandedDefinition = new MacroExpander(TermContext.of(globalContext)).processDefinition();
+  //    globalContext.setDefinition(expandedDefinition);
+  //
+  //    val evaluatedDefinition = KILtoBackendJavaKILTransformer.evaluateDefinition(globalContext);
+  //    globalContext.setDefinition(evaluatedDefinition);
+  //    evaluatedDefinition;
+  //  }
 
-  def apply(r: kast.Rule): kil.Rule = {
+  def apply(r: kast.outer.Rule): kil.Rule = {
     val (leftHandSide, rightHandSide) = r.body match {
       case kast.Rewrite(left, right, attributes) =>
         (apply(left), apply(right))
@@ -58,12 +59,19 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
     import org.kframework.kil.KLabelConstant._
     val andLabel1 = ANDBOOL_KLABEL.getLabel()
     val andLabel2 = BOOL_ANDBOOL_KLABEL.getLabel()
-    val requires = (r.requires match {
+
+    import kast.HasSymbolicConstraint.TermHasSymbolicConstraint
+
+    val (requires, ensures) = r.body match {
+      case kast.Rewrite(left, right, _) => (left.constraint, right.constraint)
+    }
+
+    val requiresKIL = (requires match {
       case kast.Term(kast.KLabel(`andLabel1` | `andLabel2`), klist, _) => klist
       case t => Seq(t)
     }) map apply
 
-    val ensures = (r.ensures match {
+    val ensuresKIL = (ensures match {
       case kast.Term(kast.KLabel(`andLabel1` | `andLabel2`), klist, _) => klist
       case t => Seq(t)
     }) map apply
@@ -105,13 +113,47 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
     val variables = kast.Traversals.collectBF({ case x: kast.Variable => x })(r.body)
     val freshVariables = variables filter { _.klabel.name.startsWith("!") } map apply
 
-    new kil.Rule(r.label, leftHandSide, rightHandSide, requires, ensures,
+    new kil.Rule(r.label, leftHandSide, rightHandSide, requiresKIL, ensuresKIL,
       freshVariables, lookupsBuilder.build(), false, // removed node.isCompiledForFastRewriting()
       null, null, null, null, null, globalContext.getDefinition());
   }
 
   def apply(r: kast.Term): kil.Term = r match {
     case r: kast.Variable => apply(r)
+    case c: kast.Cell => apply(c)
+    case seq: kast.KSeq => apply(seq)
+    case kast.BlandTerm(kast.BlandKLabel(l), klist, attributes) => kil.KItem.of(kil.KLabelConstant.of(l, context), klist map apply, context)
+  }
+  
+  def apply(r: kast.KSeq): kil.KSequence = {
+    import kast.HasSort._
+    val (variable, items) = r.klist match {
+      case (v @ kast.Variable(_, att)) +: rest if att.get(kast.Sort) != None => (apply(v), rest map apply)
+      case l => (null, l map apply)
+    }
+    
+    new kil.KSequence(items, variable)
+  }
+
+  def apply(c: kast.Cell): kil.Term = c.content match {
+    case b: kast.BuiltinBag => new kil.Cell[kil.CellCollection](kil.CellLabel.of(c.klabel.name), apply(b))
+    case c: kast.Cell => ???
+    case t: kast.Term => apply(t)
+  }
+
+  def apply(b: kast.BuiltinBag): kil.CellCollection = {
+    import kast.HasSort._
+    
+    val cells = ArrayListMultimap.create[kil.CellLabel, kil.Cell[_ <: kil.Term]]();
+    val baseTerms = Lists.newArrayList[kil.Variable]();
+    b.klist foreach {
+      case kast.Term(kast.BlandKLabel("TermComment"), _, _) =>
+      case c: kast.Cell =>
+        val kilC = apply(c).asInstanceOf[kil.Cell[_ <: kil.Term]]
+        cells.put(kilC.getLabel(), kilC)
+      case t: kast.Variable if t.sort == kast.Sort("Bag") => baseTerms.add(apply(t))
+    }
+    new kil.CellCollection(cells, baseTerms, context);
   }
 
   def apply(r: kast.Variable): kil.Variable = {
