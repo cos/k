@@ -14,45 +14,45 @@ module K-SORT
 endmodule
 
 
-module OUTER
+module OUTER [ hook-base(org.kframework.kast.outer) ]
   import K-SORT
 
-  syntax KDefinition   ::= KRequireList KModuleList
+  syntax KDefinition   ::= KRequireList KModuleList [ hook(Definition) ]
 
-  syntax KRequireList  ::= KRequire
+  syntax KRequireList  ::= KRequire 
   syntax KRequireList  ::= "" [unit]
   syntax KRequireList  ::= KRequireList KRequireList [assoc list]
-  syntax KRequire      ::= "require" KString
+  syntax KRequire      ::= "require" KString [ hook(Require) ]
 
   syntax KModuleList   ::= KModule
   syntax KModuleList   ::= "" [unit]
   syntax KModuleList   ::= KModuleList KModuleList [assoc list]
-  syntax KModule       ::= "module" KModuleName KImportList KSentenceList "endmodule"
+  syntax KModule       ::= "module" KModuleName KImportList KSentenceList "endmodule" [ hook(Module) ]
 
   syntax KImportList   ::= KImport
   syntax KImportList   ::= "" [unit]
   syntax KImportList   ::= KImportList KImportList [assoc list]
-  syntax KImport       ::= "import" KModuleName
+  syntax KImport       ::= "import" KModuleName                                       [ hook(Import) ]
 
   syntax KSentenceList ::= KSentence
   syntax KSentenceList ::= "" [unit]
   syntax KSentenceList ::= KSentenceList KSentenceList [assoc list]
 
-  syntax KSentence ::= "syntax" KSort                         "[" KAttributeList "]"
-  syntax KSentence ::= "syntax" KSort "::=" KProduction       "[" KAttributeList "]"
-  syntax KSentence ::= "configuration" K                      "[" KAttributeList "]"
-  syntax KSentence ::= "rule"          K requires K ensures K "[" KAttributeList "]"  // choice
+  syntax KSentence ::= "syntax" KSort                         "[" KAttributeList "]" [ hook(Syntax) ]
+  syntax KSentence ::= "syntax" KSort "::=" KProduction       "[" KAttributeList "]" [ hook(Syntax) ] // missing associativity!
+  syntax KSentence ::= "configuration" K                      "[" KAttributeList "]" [ hook(Configuration) ]
+  syntax KSentence ::= "rule"          K requires K ensures K "[" KAttributeList "]"  // choice // different from the regular KAST!
   syntax KSentence ::= "context"       K requires K           "[" KAttributeList "]"  // choice
 
-  syntax KProduction ::= KProductionItemList
-  syntax KProduction ::= KTag "(" KSortList ")"  // functional notation
-  syntax KProduction ::= "Token{" KRegEx "}"       // token
+  syntax KProduction ::= KProductionItemList    [ hook(RegularProduction) ] // needs a KAttributeList
+  syntax KProduction ::= KTag "(" KSortList ")" [ hook(UserList) ]          // hook(UserList) functional notation
+  syntax KProduction ::= "Token{" KRegEx "}"       // token ; Cosmin: Radu wants to allow tokens as KProductionItems
 
   syntax KProductionItemList ::= KProductionItem
   syntax KProductionItemList ::= "" [unit]
   syntax KProductionItemList ::= KProductionItemList KProductionItemList [assoc list]
-  syntax KProductionItem     ::= KSort    // non-terminal
-  syntax KProductionItem     ::= KString  // terminals
+  syntax KProductionItem     ::= KSort   [ hook(NonTerminal) ] // non-terminal
+  syntax KProductionItem     ::= KString [ hook(Terminal) ] // terminals
 
   syntax KAttributeList ::= KAttribute
   syntax KAttributeList ::= "" [unit]
@@ -78,6 +78,7 @@ module KAST
   syntax MetaKLabel    ::= Token{...}
   syntax MetaKConstant ::= #token(KString, KString)
   syntax MetaKConstant ::= #klabel(MetaKLabel)
+
   syntax MetaKItem     ::= MetaKConstant
   syntax MetaKItem     ::= MetaKLabel "(" MetaKList ")"
   syntax MetaKList     ::= MetaK

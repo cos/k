@@ -81,7 +81,9 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
 
   def apply(n: kil.Definition): kast.outer.Definition = {
     val kilModules = n.getItems().toSet
-    kast.outer.Definition(kilModules map {
+    kast.outer.Definition(
+        Set[kast.outer.Require](),
+        kilModules map {
       case m: kil.Module => convert(m)
     })
   }
@@ -232,7 +234,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
     n.getItems().asScala match {
       case Seq(i: kil.UserList) =>
         convert(i); ??? // how to merge attributes?
-      case l: Seq[_] => kast.outer.NormalProduction(l map {
+      case l: Seq[_] => kast.outer.RegularProduction(l map {
         case l: kil.Lexical => convert(l)
         case t: kil.Terminal => convert(t)
         case nt: kil.NonTerminal => convert(nt)

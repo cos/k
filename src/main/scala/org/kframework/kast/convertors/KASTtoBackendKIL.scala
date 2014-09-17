@@ -29,7 +29,7 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
     }
     singletonModule.sentences collect {
       case kast.outer.Syntax(_, blocks) => blocks flatMap {
-        _.productions map { _.getKLabel }
+        _.productions map { _.klabel }
       }
     }
 
