@@ -220,7 +220,7 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
      *
      * @see DataStructureBuiltin
      */
-    protected final Collection<Term> baseTerms;
+    protected final java.util.Collection<Term> baseTerms;
 
     protected DataStructureBuiltin(DataStructureSort sort, Collection<Term> baseTerms) {
         super(Sort.of(sort.name()));
@@ -238,7 +238,7 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
         }
     }
 
-    public Collection<Term> baseTerms() {
+    public java.util.Collection<Term> baseTerms() {
         return Collections.unmodifiableCollection(baseTerms);
     }
 

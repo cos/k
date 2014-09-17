@@ -1,34 +1,34 @@
 package org.kframework.kast
 
 object Term {
-  def unapply(t: Term): Option[(KLabel, Seq[Term], Attributes)] = {
+  def unapply(t: Term): Option[(Label, Seq[Term], Attributes)] = {
     import t._
-    Some((klabel, klist, attributes))
+    Some((label, children, attributes))
   }
 }
 
 trait Term {
-  val klabel: KLabel
-  val klist: scala.Seq[Term]
+  val label: Label
+  val children: Seq[Term]
   val attributes: Attributes
 
-  def copy(klist: Seq[Term] = klist, attributes: Attributes = attributes): Term = klabel(klist, attributes)
+  def copy(children: Seq[Term] = children, attributes: Attributes = attributes): Term = label(children, attributes)
 }
 
 trait Term0 extends Term {
-  final val klist = Seq()
-  if (klist.size != 0)
-    throw new WrongNumberOfChildrenException(klist.size, 0)
+  final val children = Seq()
+  if (children.size != 0)
+    throw new WrongNumberOfChildrenException(children.size, 0)
 }
 
 trait Term1 extends Term {
-  if (klist.size != 1)
-    throw new WrongNumberOfChildrenException(klist.size, 1)
+  if (children.size != 1)
+    throw new WrongNumberOfChildrenException(children.size, 1)
 }
 
 trait Term2 extends Term {
-  if (klist.size != 2)
-    throw new WrongNumberOfChildrenException(klist.size, 2)
+  if (children.size != 2)
+    throw new WrongNumberOfChildrenException(children.size, 2)
 }
 
 trait TermConstructor[Context] {
@@ -38,6 +38,6 @@ trait TermConstructor[Context] {
   // could be optimized to not convert things that are already in the format we want
   def convert(termToConvert: Term)(implicit context: Context): Term = {
     import termToConvert._
-    apply(klabel.toString, klist.toList map convert, attributes)
+    apply(label.toString, children.toList map convert, attributes)
   }
 }

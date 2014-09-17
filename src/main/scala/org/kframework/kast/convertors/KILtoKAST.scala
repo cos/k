@@ -126,7 +126,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
     ???
   }
 
-  implicit def convert(n: kil.KLabel): kast.KLabel = n match {
+  implicit def convert(n: kil.KLabel): kast.Label = n match {
     case l: kil.KLabelConstant => kast.KConstant(l.getLabel(), convert(l.getAttributes()))
   }
 

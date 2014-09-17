@@ -67,12 +67,12 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
     }
 
     val requiresKIL = (requires match {
-      case kast.Term(kast.KLabel(`andLabel1` | `andLabel2`), klist, _) => klist
+      case kast.Term(kast.Label(`andLabel1` | `andLabel2`), klist, _) => klist
       case t => Seq(t)
     }) map apply
 
     val ensuresKIL = (ensures match {
-      case kast.Term(kast.KLabel(`andLabel1` | `andLabel2`), klist, _) => klist
+      case kast.Term(kast.Label(`andLabel1` | `andLabel2`), klist, _) => klist
       case t => Seq(t)
     }) map apply
 
@@ -111,7 +111,7 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
       }
     }
     val variables = kast.Traversals.collectBF({ case x: kast.Variable => x })(r.body)
-    val freshVariables = variables filter { _.klabel.name.startsWith("!") } map apply
+    val freshVariables = variables filter { _.label.name.startsWith("!") } map apply
 
     new kil.Rule(r.label, leftHandSide, rightHandSide, requiresKIL, ensuresKIL,
       freshVariables, lookupsBuilder.build(), false, // removed node.isCompiledForFastRewriting()
@@ -122,32 +122,36 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
     case r: kast.Variable => apply(r)
     case c: kast.Cell => apply(c)
     case seq: kast.KSeq => apply(seq)
-    case kast.BlandTerm(kast.BlandKLabel(l), klist, attributes) => kil.KItem.of(kil.KLabelConstant.of(l, context), klist map apply, context)
+    case kast.BlandTerm(kast.BlandLabel(l), klist, attributes) =>
+      kil.KItem.of(
+        kil.KLabelConstant.of(l, context),
+        new kil.KList(klist map apply, null),
+        kil.TermContext.of(globalContext))
   }
-  
+
   def apply(r: kast.KSeq): kil.KSequence = {
     import kast.HasSort._
-    val (variable, items) = r.klist match {
+    val (variable, items) = r.children match {
       case (v @ kast.Variable(_, att)) +: rest if att.get(kast.Sort) != None => (apply(v), rest map apply)
       case l => (null, l map apply)
     }
-    
+
     new kil.KSequence(items, variable)
   }
 
   def apply(c: kast.Cell): kil.Term = c.content match {
-    case b: kast.BuiltinBag => new kil.Cell[kil.CellCollection](kil.CellLabel.of(c.klabel.name), apply(b))
+    case b: kast.BuiltinBag => new kil.Cell[kil.CellCollection](kil.CellLabel.of(c.label.name), apply(b))
     case c: kast.Cell => ???
     case t: kast.Term => apply(t)
   }
 
   def apply(b: kast.BuiltinBag): kil.CellCollection = {
     import kast.HasSort._
-    
+
     val cells = ArrayListMultimap.create[kil.CellLabel, kil.Cell[_ <: kil.Term]]();
     val baseTerms = Lists.newArrayList[kil.Variable]();
-    b.klist foreach {
-      case kast.Term(kast.BlandKLabel("TermComment"), _, _) =>
+    b.children foreach {
+      case kast.Term(kast.BlandLabel("TermComment"), _, _) =>
       case c: kast.Cell =>
         val kilC = apply(c).asInstanceOf[kil.Cell[_ <: kil.Term]]
         cells.put(kilC.getLabel(), kilC)
@@ -157,7 +161,23 @@ case class KASTtoBackendKIL(globalContext: GlobalContext, context: Context, inde
   }
 
   def apply(r: kast.Variable): kil.Variable = {
-    ???
+    import kast.HasSort._
+    val kilSort = frontkil.Sort.of(r.sort.name)
+    kilSort match {
+      case frontkil.Sort.BAG => new kil.Variable(r.name, kil.Kind.CELL_COLLECTION.asSort())
+      case frontkil.Sort.K => new kil.Variable(r.name, kil.Sort.KSEQUENCE)
+      case frontkil.Sort.KLIST => new kil.Variable(r.name, kil.Sort.KLIST)
+      case s =>
+        val sort = context.dataStructureSortOf(s) match {
+          case frontkil.Sort.LIST => kil.Sort.LIST
+          case frontkil.Sort.MAP => kil.Sort.MAP
+          case frontkil.Sort.SET => kil.Sort.SET 
+          case null => kil.Sort.of(r.name)
+        }
+        //TODO missing the concreteCollectionSize stuff here
+        new kil.Variable(r.name, sort)
+    }
+
   }
 
   def oldVisit(node: frontkil.Variable, concreteCollectionSize: java.util.Map[frontkil.Variable, Integer]) = {

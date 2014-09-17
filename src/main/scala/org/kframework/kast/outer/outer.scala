@@ -47,7 +47,7 @@ case class Syntax(sort: kast.Sort, blocks: Seq[Block]) extends Sentence {
 case class SyntaxPriority(productions: Set[SyntaxPriorityBlock]) extends Sentence {
 } 
 
-case class SyntaxPriorityBlock(productions: Seq[kast.KLabel]) {
+case class SyntaxPriorityBlock(productions: Seq[kast.Label]) {
   
 }
 

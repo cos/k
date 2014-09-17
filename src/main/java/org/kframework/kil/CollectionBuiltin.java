@@ -24,7 +24,7 @@ public abstract class CollectionBuiltin extends DataStructureBuiltin {
         this.elements = elements;
     }
 
-    public Collection<Term> elements() {
+    public java.util.Collection<Term> elements() {
         return Collections.unmodifiableCollection(elements);
     }
 
