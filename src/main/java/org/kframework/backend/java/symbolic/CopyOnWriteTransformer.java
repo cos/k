@@ -573,7 +573,7 @@ public class CopyOnWriteTransformer implements Transformer {
                     processedRhsOfWriteCell,
                     rule.cellsToCopy(),
                     rule.instructions(),
-                    rule,
+                    rule.getAttributes(),
                     definition);
         } else {
             return rule;

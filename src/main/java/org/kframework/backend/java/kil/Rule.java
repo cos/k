@@ -23,7 +23,11 @@ import org.kframework.backend.java.util.Utils;
 import org.kframework.compile.checks.CheckVariables;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
+import org.kframework.kil.Attributes;
+import org.kframework.kil.Location;
+import org.kframework.kil.Source;
 import org.kframework.kil.loader.Constants;
+
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -108,7 +112,7 @@ public class Rule extends JavaSymbolicObject {
             Map<CellLabel, Term> rhsOfWriteCells,
             Set<CellLabel> cellsToCopy,
             List<Instruction> instructions,
-            ASTNode oldRule,
+            Attributes attributes,
             Definition definition) {
         this.label = label;
         this.leftHandSide = leftHandSide;
@@ -118,13 +122,16 @@ public class Rule extends JavaSymbolicObject {
         this.freshVariables = ImmutableSet.copyOf(freshVariables);
         this.lookups = lookups;
 
-        copyAttributesFrom(oldRule);
-        setLocation(oldRule.getLocation());
-        setSource(oldRule.getSource());
+        if(this.attributes == null)
+            this.attributes = new Attributes();
+        
+        this.attributes.putAll(attributes);
+        setLocation(attributes.getAttribute(Location.class));
+        setSource(attributes.getAttribute(Source.class));
 
-        if (oldRule.containsAttribute(Constants.STDIN)
-                || oldRule.containsAttribute(Constants.STDOUT)
-                || oldRule.containsAttribute(Constants.STDERR)) {
+        if (attributes.containsKey(Attribute.keyOf(Constants.STDIN))
+                || attributes.containsKey(Attribute.keyOf(Constants.STDOUT))
+                || attributes.containsKey(Attribute.keyOf(Constants.STDERR))) {
             Variable listVar = (Variable) lhsOfReadCells.values().iterator().next();
             BuiltinList.Builder streamListBuilder = BuiltinList.builder();
             for (Equality eq : lookups.equalities()) {
@@ -135,7 +142,7 @@ public class Rule extends JavaSymbolicObject {
             }
 
             Term streamList = streamListBuilder.build();
-            this.indexingPair = oldRule.containsAttribute(Constants.STDIN) ?
+            this.indexingPair = attributes.containsKey(Attribute.keyOf(Constants.STDIN)) ?
                     IndexingPair.getInstreamIndexingPair(streamList, definition) :
                     IndexingPair.getOutstreamIndexingPair(streamList, definition);
         } else {

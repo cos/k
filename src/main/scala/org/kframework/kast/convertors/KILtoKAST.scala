@@ -6,6 +6,8 @@ import collection.JavaConverters._
 import org.kframework.kast
 import kast.outer.Associativity._
 import org.kframework.kil.KLabel
+import org.kframework.kast.BlandTerm
+import org.kframework.kast.BlandLabel
 
 object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
 
@@ -21,11 +23,14 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
 
   implicit def convert(n: kil.Attributes): kast.Attributes = {
     kast.Attributes(n map {
-      case (_, v) => (Symbol(v.getKey().toString),
+      case (_, v: kil.Attribute[Any]) => 
+        val sym = Symbol(v.getKey().toString)
+        kast.UglyRecorder.ugly += (sym -> v.getKey())
+        (sym,
         if (v.getValue() == null)
           true
         else
-          v.getValue().toString)
+          v.getValue())
     } toMap)
   }
 
@@ -259,10 +264,6 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
     ???
   }
 
-  object Lookups extends kast.Key[java.util.List[kil.BuiltinLookup]] {
-    val key = 'lookups
-  }
-
   object ConcreteDataStructureSize extends kast.Key[java.util.Map[kil.Variable, Integer]] {
     val key = 'concreteDataStructureSize
   }
@@ -278,13 +279,15 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
       .fold(kast.Attributes()) { c: kast.Term =>
         attributes + (kast.SymbolicConstraint -> c)
       }
+    
+    
     val body = convert(n.getBody())
 
     val bodyWithRequiresEnsures = body match {
       case kast.Rewrite(left, right, attributes) => {
         kast.Rewrite(
-          left.copy(attributes = withRequire),
-          right.copy(attributes = withEnsure),
+          left.copy(attributes = left.attributes ++ withRequire),
+          right.copy(attributes = right.attributes ++ withEnsure),
           attributes)
       }
     }
@@ -355,13 +358,19 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
 
     // collections
     case bag: kil.Bag =>
-      Term("Bag", bag.getContents() map convert, bag.getSort(), bag.getAttributes() + kast.Flag('bag))
+      val collectIn = collection.mutable.ArrayBuffer[kil.Term]()
+      org.kframework.kil.Bag.flatten(collectIn, bag.getContents())
+      Term("Bag", collectIn map convert, bag.getSort(), bag.getAttributes() + kast.Flag('bag))
+      
     case map: kil.MapBuiltin =>
-      val pairs = map.elements() map {
-        case (_1, _2) => kast.BuiltinTuple2(_1, _2)
-      } toSeq
-
-      Term("Map", pairs, map.getSort(), map.getAttributes() + kast.Flag('map))
+      val pairs = (map.elements() map {
+        case (_1, _2) => 
+          BlandTerm(BlandLabel(map.sort().elementLabel()), Seq(_1, _2), kast.Attributes())
+      }).foldLeft(BlandTerm(BlandLabel(map.sort().unitLabel()), Seq(), kast.Attributes())) {
+        case (a, b) => BlandTerm(BlandLabel(map.sort().constructorLabel()), Seq(a, b), kast.Attributes())
+      }
+    ???
+//      Term("Map", pairs, map.getSort(), map.getAttributes() + kast.Flag('map))
 
     // kapp 
     case kapp: kil.KApp => Term(kapp.getLabel().toString(), convert(kapp.getChild().asInstanceOf[kil.KList]), kapp.getSort(), kapp.getAttributes())
@@ -444,6 +453,6 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
   implicit def convert(n: kil.Sort): kast.Sort = kast.Sort(n.getName())
 
   def convert(n: kil.Variable): kast.Variable = {
-    kast.Variable(n.getName(), n.getAttributes())
+    kast.Variable(n.getName(), n.getAttributes() + (kast.Sort -> convert(n.getSort())))
   }
 }

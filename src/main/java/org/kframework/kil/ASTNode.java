@@ -27,7 +27,7 @@ public abstract class ASTNode implements Serializable {
     /**
      * Used on any node for metadata also used on {@link Rule} and {@link Production} for the attribute list.
      */
-    private Attributes attributes;
+    protected Attributes attributes;
 
     private Source source;
     private Location location;

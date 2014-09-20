@@ -11,6 +11,6 @@ trait HasSymbolicConstraint extends Any {
 object HasSymbolicConstraint {
   implicit class TermHasSymbolicConstraint(val term: Term)
     extends AnyVal with HasSymbolicConstraint {
-    def constraint = term.attributes(SymbolicConstraint)
+    def constraint = term.attributes.get(SymbolicConstraint).getOrElse(Boolean.True)
   }
 }

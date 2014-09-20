@@ -56,7 +56,7 @@ object Traversals {
   }
 }
 
-case class BlandLabel(name: String) extends Label {
+case class BlandLabel(name: String) extends Label with KLabel {
   def apply(children: Seq[Term], attributes: Attributes): Term = BlandTerm(this, children, attributes)
 }
 
@@ -69,6 +69,8 @@ case class KConstant(name: String, attributes: Attributes) extends LabelTerm wit
 }
 
 case class Variable(name: String, val attributes: Attributes) extends LabelTerm with Term0 {
+  assert(attributes.get(Sort) != None)
+  
   def apply(children: Seq[Term], attributes: Attributes): Term = {
     Variable(name, attributes)
   }
