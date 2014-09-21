@@ -20,3 +20,5 @@ target/
 /editor-support/k-idea-plugin-src/gen
 /editor-support/k-idea-plugin-src/out
 /target
+/bin
+

@@ -36,6 +36,18 @@ module IMP-SYNTAX
   syntax Pgm   ::= "int" AExps ";" Stmt
   syntax AExps ::= List{AExp,","}
   syntax Ids   ::= List{Id,","}
+  
+  syntax Bla   ::= List{Exp, "+"} 	[assoc]
+  
+  syntax Bla   ::= Bla "+" Bla      [assoc] 
+  				 | Exp 
+  				 | 0
+  
+  syntax MapBla ::= MapBla "U" MapBla [assoc, com]		 
+  				  | Pair			  
+  				  | zero			  [unit]
+  
+  syntax Pair ::= (Exp, Exp)		  [key(1)]
 
   syntax Stmt ::= "while " "(" BExp ")" "invariant" ":" Assert Block
   syntax Assert ::= BExp

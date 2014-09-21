@@ -22,11 +22,15 @@ We selected this core of K based on the following two criteria:
 
 module BASIC-K
   syntax K   [...]
+  
   syntax KList ::= K   [...]
   syntax KList ::= ".::KList"   [klabel(emptyKList), ...]
   syntax KList ::= KList "," KList   [assoc, unit(emptyKList), ...]
+  
+  syntax KSort ::= r"[A-Z][A-Za-z0-9]*"   [token, ...]
+  
+  syntax KAttributes ::= "[" KList "]"   [...]
 endmodule
-
 
 module OUTER-KORE
   import BASIC-K
@@ -64,11 +68,8 @@ module OUTER-KORE
   syntax KProductionItem ::= KSort   [...] // non-terminal
   syntax KProductionItem ::= KString   [...] // terminals, including regexes
 
-  syntax KAttributes ::= "[" KList "]"   [...]
-
   // The following can still change
   syntax KModuleName ::= r"[A-Z][A-Z\-\_]*"   [token, ...]
-  syntax KSort ::= r"[A-Z][A-Za-z0-9]*"   [token, ...]
   syntax KString ::= ...Radu...   [token, ...]
          // optionally qualified strings, like in Scala "abc", i"abc", r"a*bc", etc.
 endmodule
@@ -80,7 +81,7 @@ module INNER-KAST
   syntax KLabel    ::= "`" KLabel "`"   [bracket, ...]
     // prefer optional brackets for labels, because we encode attributes as K terms, too
 
-  syntax KConstant ::= "#token" "(" KString "," KString ")"   [...]
+  syntax KConstant ::= "#token" "(" KString "," KSort ")"   [...]
   syntax KConstant ::= "#klabel" "(" KLabel ")"   [...]
   syntax KItem     ::= KConstant   [...]
   syntax KItem     ::= KLabel "(" KList ")"   [...]
@@ -88,7 +89,7 @@ module INNER-KAST
   syntax K         ::= ".::K"   [klabel(emptyK)]
   syntax K         ::= K "~>" K  [assoc, unit(emptyK)]
 
-  syntax KVariable ::= ... // same like KSort?
+  syntax KVariable ::= r"\$?[A-Z_][A-Za-z0-9]*"				[token, ...]
   syntax KItem     ::= KVariable   [...]
   syntax KItem     ::= KItem ":" KSort   [...]
   syntax K         ::= K "=>" K   [...]
