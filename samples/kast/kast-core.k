@@ -9,8 +9,9 @@ print terms based on the original syntax, or the capability to report error
 messages referring to constructs in the original definition.  */
 
 
-module K-SORT
+module BASE
   syntax K [hook(...)]
+  syntax KSort ::= ...
 endmodule
 
 
@@ -46,13 +47,13 @@ module OUTER [ hook-base(org.kframework.kast.outer) ]
 
   syntax KProduction ::= KProductionItemList    [ hook(RegularProduction) ] // needs a KAttributeList
   syntax KProduction ::= KTag "(" KSortList ")" [ hook(UserList) ]          // hook(UserList) functional notation
-  syntax KProduction ::= "Token{" KRegEx "}"       // token ; Cosmin: Radu wants to allow tokens as KProductionItems
 
   syntax KProductionItemList ::= KProductionItem
   syntax KProductionItemList ::= "" [unit]
   syntax KProductionItemList ::= KProductionItemList KProductionItemList [assoc list]
   syntax KProductionItem     ::= KSort   [ hook(NonTerminal) ] // non-terminal
   syntax KProductionItem     ::= KString [ hook(Terminal) ] // terminals
+  syntax KProductionItem 	 ::= "Token{" KRegEx "}"       // token ; Cosmin: Radu wants to allow tokens as KProductionItems  
 
   syntax KAttributeList ::= KAttribute
   syntax KAttributeList ::= "" [unit]
@@ -67,7 +68,6 @@ module OUTER [ hook-base(org.kframework.kast.outer) ]
   // The following can still change
   syntax KModuleName ::= ...
   syntax KString ::= ...
-  syntax KSort ::= ...
   syntax KTag ::= ...
 endmodule
 
@@ -76,7 +76,7 @@ module KAST
   import K-SORT
 
   syntax MetaKLabel    ::= Token{...}
-  syntax MetaKConstant ::= #token(KString, KString)
+  syntax MetaKConstant ::= #token(KString, KSort)
   syntax MetaKConstant ::= #klabel(MetaKLabel)
 
   syntax MetaKItem     ::= MetaKConstant
@@ -93,6 +93,8 @@ module KAST
   syntax MetaKItem     ::= MetaKItem ":" KSort
   syntax MetaK         ::= MetaK "=>" MetaK
   syntax MetaK         ::= "`" MetaK "`"  [bracket]
+  
+  syntax MySet ::= "myset" "(" KList ")"       [ assoc com ]
 endmodule
 
 
