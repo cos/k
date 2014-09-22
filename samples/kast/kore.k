@@ -25,7 +25,7 @@ module BASIC-K
     
   syntax KSort ::= r"[A-Z][A-Za-z0-9]*"   [token, ...]
   
-  syntax KAttributes ::= "[" KList "]"   [...]
+  syntax KAttributes ::= "[" K "]"   [...]
 endmodule
 
 
