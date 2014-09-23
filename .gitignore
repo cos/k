@@ -1,7 +1,6 @@
 .k
 *-kompiled
 *-kompiled-symbolic
-*.kore
 *.pdf
 *.swp
 .metadata
@@ -21,4 +20,4 @@ target/
 /editor-support/k-idea-plugin-src/out
 /target
 /bin
-
+.project
