@@ -56,7 +56,7 @@ object Traversals {
   }
 }
 
-case class BlandLabel(name: String) extends Label with KLabel {
+case class BlandLabel(name: String) extends Label {
   def apply(children: Seq[Term], attributes: Attributes): Term = BlandTerm(this, children, attributes)
 }
 
