@@ -38,8 +38,20 @@ class TestParser {
 
   @Test def testPlus() {
     assertParse(
-      "1" + "+2" * 2,
+      "1 + 2",
       """#token("Exp","1")(.KList) + #token("Exp","2")(.KList) """)
+  }
+  
+  @Test def test2Plus() {
+    assertParse(
+      "1" + "+2" * 2,
+      """#token("Exp","1")(.KList)""" +  """ + #token("Exp","2")(.KList) """ * 2)
+  }
+  
+  @Test def test10Plus() {
+    assertParse(
+      "1" + "+2" * 10,
+      """#token("Exp","1")(.KList)""" +  """ + #token("Exp","2")(.KList) """ * 10)
   }
 
   def assertParse(program: String, expected: String) {
@@ -66,7 +78,7 @@ class TestParser {
     val productionItems = p.items map convert
     val exp = new kil.Production(new kil.NonTerminal(p.sort), productionItems)
 
-    val priorityBlock = new kil.PriorityBlock("non-assoc", exp)
+    val priorityBlock = new kil.PriorityBlock(null, exp)
 
     val syntax = new kil.Syntax(new kil.NonTerminal(p.sort), priorityBlock)
 
