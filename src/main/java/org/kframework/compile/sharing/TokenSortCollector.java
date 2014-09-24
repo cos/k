@@ -47,7 +47,7 @@ public class TokenSortCollector extends BasicVisitor {
 
     private KompileOptions kompileOptions;
 
-    private TokenSortCollector(Context context) {
+    public TokenSortCollector(Context context) {
         super(context);
         this.kompileOptions = context.kompileOptions;
     }
@@ -118,6 +118,10 @@ public class TokenSortCollector extends BasicVisitor {
     @Override
     public Void visit(Configuration node, Void _) {
         return null;
+    }
+
+    public Set<Sort> getTokenSorts() {
+        return this.tokenSorts;
     }
 
 }

@@ -2,6 +2,7 @@ package org.kframework.kast.outer
 
 import org.kframework.kast
 import org.kframework.kast.Attributes
+import scala.util.matching.Regex
 
 object Definition {
   def apply(requires: Require, modules: Module*): Definition = Definition(Set[Require](), modules.toSet)
@@ -65,8 +66,7 @@ case class UserList(sort: kast.Sort, separator: String, attributes: kast.Attribu
   def klabel = "'_" + separator + "_"
 }
 
-case class NonTerminal(name: String, sort: kast.Sort) extends ProductionItem // hooked but it seems we have an extra "name" here
-trait Regex
+case class NonTerminal(sort: kast.Sort) extends ProductionItem // hooked but it seems we have an extra "name" here
 case class Lexical(regex: Regex) extends ProductionItem // the equivalent for this is actually a KProduction in kore kast
 case class Terminal(value: String) extends ProductionItem // hooked
   with TerminalToString

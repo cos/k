@@ -202,7 +202,7 @@ object KILtoKAST extends Function1[kil.Definition, kast.outer.Definition] {
   }
 
   def convert(n: kil.NonTerminal): kast.outer.NonTerminal = {
-    kast.outer.NonTerminal(n.getName(), convert(n.getSort()))
+    kast.outer.NonTerminal(convert(n.getSort()))
   }
 
   def convert(n: kil.ParseError): Return = {
