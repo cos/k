@@ -6,6 +6,8 @@ import collection.JavaConversions._
 import org.kframework._
 import org.junit.Assert
 import org.kframework.kil.Module
+import org.kframework.parser.outer.Outer
+import org.kframework.kil.Sources
 
 class TestParser {
   import outer._
@@ -41,26 +43,49 @@ class TestParser {
       "1 + 2",
       """#token("Exp","1")(.KList) + #token("Exp","2")(.KList) """)
   }
-  
+
   @Test def test2Plus() {
     assertParse(
       "1" + "+2" * 2,
-      """#token("Exp","1")(.KList)""" +  """ + #token("Exp","2")(.KList) """ * 2)
+      """#token("Exp","1")(.KList)""" + """ + #token("Exp","2")(.KList) """ * 2)
   }
-  
+
   @Test def test10Plus() {
+    val times = 10
     assertParse(
-      "1" + "+2" * 10,
-      """#token("Exp","1")(.KList)""" +  """ + #token("Exp","2")(.KList) """ * 10)
+      "1" + "+2" * times,
+      """#token("Exp","1")(.KList)""" + """ + #token("Exp","2")(.KList) """ * times)
   }
 
   def assertParse(program: String, expected: String) {
     val module = new kil.Module()
     val mi = productions map convert
     module.setItems(mi)
+    assertParseWithModule(program, expected, module)
+  }
 
+  def assertParseWithModule(program: String, expected: String, module: kil.ASTNode) {
     val term = QuickParser.parse(program, ExpSort, module)
     Assert.assertEquals(expected, term.toString())
+  }
+
+  @Test def testDirectly() {
+    val module = constructFromString("""
+module TEST
+  syntax Exp ::= Token{[0-9]+} 
+               | Exp "+" Exp [ left ]
+endmodule
+""")
+    assertParseWithModule("1 + 2", """
+#token("Exp","1")(.KList) + #token("Exp","2")(.KList) 
+""", module)
+  }
+
+  def constructFromString(definitionString: String): kil.Definition = {
+    val definition = new kil.Definition()
+    val items = Outer.parse(Sources.generatedBy(classOf[TestParser]), definitionString, null)
+    definition.setItems(items)
+    definition
   }
 
   implicit def convert(p: outer.ProductionItem): kil.ProductionItem = p match {
@@ -77,6 +102,7 @@ class TestParser {
   implicit def convert(p: Production): kil.Syntax = {
     val productionItems = p.items map convert
     val exp = new kil.Production(new kil.NonTerminal(p.sort), productionItems)
+    exp.putAttribute("left", null)
 
     val priorityBlock = new kil.PriorityBlock(null, exp)
 

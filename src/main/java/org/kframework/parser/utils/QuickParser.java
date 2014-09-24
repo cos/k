@@ -10,6 +10,7 @@ import org.kframework.kil.Module;
 import org.kframework.kil.ProductionReference;
 import org.kframework.kil.Sort;
 import org.kframework.kil.Term;
+import org.kframework.kil.loader.CollectPrioritiesVisitor;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.loader.UpdateReferencesVisitor;
 import org.kframework.kil.visitors.exceptions.ParseFailedException;
@@ -30,25 +31,28 @@ import org.kframework.utils.errorsystem.KException.ExceptionType;
 import org.kframework.utils.errorsystem.KException.KExceptionGroup;
 
 public class QuickParser {
-    public static ProductionReference parse(String program, Sort startSymbol, ASTNode m) throws ParseFailedException {
+    public static ProductionReference parse(String program, Sort startSymbol, ASTNode module) throws ParseFailedException {
         Context context = new Context();
         context.kompileOptions = new KompileOptions();
         context.globalOptions = new GlobalOptions();
 
         UpdateReferencesVisitor updateReferencesVisitor = new UpdateReferencesVisitor(context);
-        updateReferencesVisitor.visitNode(m);
+        updateReferencesVisitor.visitNode(module);
         
         TokenSortCollector tokenSortCollector = new TokenSortCollector(context);
-        tokenSortCollector.visitNode(m);
+        tokenSortCollector.visitNode(module);
         context.setTokenSorts(tokenSortCollector.getTokenSorts());
         
         // collect the syntax from those modules
         CollectTerminalsVisitor ctv = new CollectTerminalsVisitor(context);
         // visit all modules to collect all Terminals first
-        ctv.visitNode(m);
+        ctv.visitNode(module);
         KSyntax2GrammarStatesFilter ks2gsf = new KSyntax2GrammarStatesFilter(context, ctv);
-        ks2gsf.visitNode(m);
+        ks2gsf.visitNode(module);
         Grammar grammar = ks2gsf.getGrammar();
+        
+        CollectPrioritiesVisitor collectPrioritiesVisitor = new CollectPrioritiesVisitor(context);
+        collectPrioritiesVisitor.visitNode(module);
 
         Parser parser = new Parser(program);
         ASTNode out = parser.parse(grammar.get(startSymbol.toString()), 0);
@@ -62,7 +66,7 @@ public class QuickParser {
             out = new PreferAvoidFilter(context).visitNode(out);
             if (context.globalOptions.debug)
                 System.err.println("Filtered: " + out + "\n");
-            out = new AmbFilter(context).visitNode(out);
+//            out = new AmbFilter(context).visitNode(out);
             out = new RemoveBrackets(context).visitNode(out);
         } catch (ParseFailedException te) {
             ParseError perror = parser.getErrors();
