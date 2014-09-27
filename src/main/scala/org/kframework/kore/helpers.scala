@@ -27,7 +27,7 @@ trait SeqCollectionConstruction {
 trait CanBuildKList {
   import KAST._
 
-  def fromSeq(buf: Seq[Term]): KList = new KList(buf)
+  val fromSeq = new KList(_)
 
   implicit def canBuildFrom: CanBuildFrom[KList, Term, KList] =
     new CanBuildFrom[KList, Term, KList] {
@@ -39,8 +39,8 @@ trait CanBuildKList {
 trait CanBuildKSeq {
   import KAST._
   import KSEQ._
-  
-  def fromSeq(buf: Seq[Term]): KSeq = new KSeq(buf)
+
+  val fromSeq = new KSeq(_: Seq[Term])
 
   implicit def canBuildFrom: CanBuildFrom[KSeq, Term, KSeq] =
     new CanBuildFrom[KSeq, Term, KSeq] {
