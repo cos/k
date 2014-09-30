@@ -4,10 +4,6 @@ import org.kframework.kast
 import org.kframework.kast.Attributes
 import scala.util.matching.Regex
 
-object Definition {
-  def apply(requires: Require, modules: Module*): Definition = Definition(Set[Require](), modules.toSet)
-}
-
 case class Definition(requires: Set[Require], modules: Set[Module]) // hooked
   extends DefinitionToString
 
