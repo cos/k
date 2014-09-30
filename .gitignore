@@ -1,17 +1,20 @@
 .k
 *-kompiled
-*-kompiled-symbolic
+*.kore
 *.pdf
 *.swp
+*.iml
 .metadata
 .recommenders
 .cache
 .idea
 .classpath
 .settings/
+java-backend/.project
+k-distribution/.project
 *~
 junit-reports
-samples/test/
+k-distribution/samples/test/
 release/
 target/
 
