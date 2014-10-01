@@ -111,8 +111,8 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
 
         if (sort.type().equals(Sort.BAG)
                 || sort.type().equals(Sort.SET)) {
-            Collection<Term> elements = new ArrayList<Term>();
-            Collection<Term> terms = new ArrayList<Term>();
+            java.util.Collection<Term> elements = new ArrayList<Term>();
+            java.util.Collection<Term> terms = new ArrayList<Term>();
             for (Term term : argument) {
                 if (term instanceof CollectionBuiltin) {
                     CollectionBuiltin collectionBuiltin = (CollectionBuiltin) term;
@@ -186,7 +186,7 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
             return ListBuiltin.of(sort, terms, elementsLeft, elementsRight);
         } else if (sort.type().equals(Sort.MAP)) {
             Map<Term, Term> elements = new HashMap<Term, Term>();
-            Collection<Term> terms = new ArrayList<Term>();
+            java.util.Collection<Term> terms = new ArrayList<Term>();
             for (Term term : argument) {
                 if (term instanceof MapBuiltin) {
                     MapBuiltin mapBuiltin = (MapBuiltin) term;
@@ -220,9 +220,9 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
      *
      * @see DataStructureBuiltin
      */
-    protected final Collection<Term> baseTerms;
+    protected final java.util.Collection<Term> baseTerms;
 
-    protected DataStructureBuiltin(DataStructureSort sort, Collection<Term> baseTerms) {
+    protected DataStructureBuiltin(DataStructureSort sort, java.util.Collection<Term> baseTerms) {
         super(Sort.of(sort.name()));
         this.dataStructureSort = sort;
         this.baseTerms = baseTerms;
@@ -238,7 +238,7 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
         }
     }
 
-    public Collection<Term> baseTerms() {
+    public java.util.Collection<Term> baseTerms() {
         return Collections.unmodifiableCollection(baseTerms);
     }
 
@@ -280,7 +280,7 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
         throw new UnsupportedOperationException();
     }
 
-    public abstract DataStructureBuiltin shallowCopy(Collection<Term> baseTerms);
+    public abstract DataStructureBuiltin shallowCopy(java.util.Collection<Term> baseTerms);
 
     @Override
     public int hashCode() {
@@ -306,7 +306,7 @@ public abstract class DataStructureBuiltin extends Term implements Interfaces.Co
     }
 
     @Override
-    public Collection<Term> getChildren(ListChildren type) {
+    public java.util.Collection<Term> getChildren(ListChildren type) {
         switch (type) {
         case BASE_TERMS:
             return baseTerms;

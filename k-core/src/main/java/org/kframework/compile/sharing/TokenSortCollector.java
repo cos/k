@@ -42,12 +42,12 @@ public class TokenSortCollector extends BasicVisitor {
     public static Set<Sort> collectTokenSorts(Definition definition, Context context) {
         TokenSortCollector collector = new TokenSortCollector(context);
         collector.visitNode(definition);
-        return collector.tokenSorts;
+        return collector.getTokenSorts();
     }
 
     private KompileOptions kompileOptions;
 
-    private TokenSortCollector(Context context) {
+    public TokenSortCollector(Context context) {
         super(context);
         this.kompileOptions = context.kompileOptions;
     }
@@ -58,7 +58,7 @@ public class TokenSortCollector extends BasicVisitor {
             checkIllegalProduction(production);
         } else {
             if (production.isLexical() && !production.containsAttribute(Constants.VARIABLE)) {
-                tokenSorts.add(production.getSort());
+                getTokenSorts().add(production.getSort());
             }
         }
         return null;
@@ -85,7 +85,7 @@ public class TokenSortCollector extends BasicVisitor {
                         this, production);
             }
 
-            tokenSorts.add(sort);
+            getTokenSorts().add(sort);
         }
 
         /*
@@ -118,6 +118,10 @@ public class TokenSortCollector extends BasicVisitor {
     @Override
     public Void visit(Configuration node, Void _) {
         return null;
+    }
+
+    public Set<Sort> getTokenSorts() {
+        return tokenSorts;
     }
 
 }

@@ -17,6 +17,7 @@
     <sdf.resource.dir>${basedir}/src/main/sdf/syntax</sdf.resource.dir>
     <stratego.src.dir>${basedir}/target/generated-sources/sdf</stratego.src.dir>
     <stratego.package.dir>${stratego.src.dir}/org/kframework/parser/concrete/lib</stratego.package.dir>
+    <scala.version>2.10.4</scala.version>        
   </properties>
 
   <dependencies>
@@ -155,6 +156,11 @@
       <classifier>${native.os.classifier}</classifier>
       <scope>provided</scope>
     </dependency>
+	<dependency>
+	  <groupId>org.scala-lang</groupId>
+	  <artifactId>scala-library</artifactId>
+      <version>${scala.version}</version>
+	</dependency>
   </dependencies>
 
   <build>
@@ -167,6 +173,29 @@
       </resource>
     </resources>
     <plugins>
+      <plugin>
+      	<groupId>net.alchim31.maven</groupId>
+  	  	<artifactId>scala-maven-plugin</artifactId>
+      	<version>3.2.0</version>
+				<executions>
+					<execution>
+						<id>scala-compile-first</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>add-source</goal>
+							<goal>compile</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>scala-test-compile</id>
+						<phase>process-test-resources</phase>
+						<goals>
+							<goal>testCompile</goal>
+						</goals>
+					</execution>
+				</executions>
+  	  </plugin>
+    
       <plugin>
         <artifactId>maven-antrun-plugin</artifactId>
         <version>1.7</version>

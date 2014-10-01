@@ -80,7 +80,7 @@ public class ListUpdate extends Term implements Interfaces.Collection<Term, List
     }
 
     @Override
-    public Collection<Term> getChildren(ListChildren type) {
+    public java.util.Collection<Term> getChildren(ListChildren type) {
         switch (type) {
             case REMOVE_LEFT:
                 return removeLeft;

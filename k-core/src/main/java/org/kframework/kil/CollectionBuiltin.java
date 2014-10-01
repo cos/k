@@ -14,17 +14,17 @@ import java.util.Collections;
  */
 public abstract class CollectionBuiltin extends DataStructureBuiltin {
 
-    protected final Collection<Term> elements;
+    protected final java.util.Collection<Term> elements;
 
     public CollectionBuiltin(
             DataStructureSort sort,
-            Collection<Term> baseTerms,
-            Collection<Term> elements) {
+            java.util.Collection<Term> baseTerms,
+            java.util.Collection<Term> elements) {
         super(sort, baseTerms);
         this.elements = elements;
     }
 
-    public Collection<Term> elements() {
+    public java.util.Collection<Term> elements() {
         return Collections.unmodifiableCollection(elements);
     }
 
@@ -33,7 +33,7 @@ public abstract class CollectionBuiltin extends DataStructureBuiltin {
         return elements.isEmpty() && super.baseTerms.isEmpty();
     }
 
-    public abstract CollectionBuiltin shallowCopy(Collection<Term> baseTerms, Collection<Term> elements);
+    public abstract CollectionBuiltin shallowCopy(java.util.Collection<Term> baseTerms, java.util.Collection<Term> elements);
 
     @Override
     public int hashCode() {
@@ -63,7 +63,7 @@ public abstract class CollectionBuiltin extends DataStructureBuiltin {
     }
 
     @Override
-    public Collection<Term> getChildren(
+    public java.util.Collection<Term> getChildren(
             DataStructureBuiltin.ListChildren type) {
         switch (type) {
             case ELEMENTS:
