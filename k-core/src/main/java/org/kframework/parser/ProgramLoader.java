@@ -3,6 +3,7 @@ package org.kframework.parser;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Map;
 
 import org.kframework.compile.transformers.AddEmptyLists;
 import org.kframework.compile.transformers.FlattenTerms;
@@ -26,6 +27,7 @@ import org.kframework.parser.concrete.disambiguate.NormalizeASTTransformer;
 import org.kframework.parser.concrete.disambiguate.PreferAvoidFilter;
 import org.kframework.parser.concrete.disambiguate.PriorityFilter;
 import org.kframework.parser.concrete2.Grammar;
+import org.kframework.parser.concrete2.Grammar.NonTerminal;
 import org.kframework.parser.concrete2.MakeConsList;
 import org.kframework.parser.concrete2.Parser;
 import org.kframework.parser.concrete2.Parser.ParseError;
@@ -129,41 +131,91 @@ public class ProgramLoader {
             // TODO(Radu): (the default one) with this branch of the 'if'
             Grammar grammar = BinaryLoader.instance().loadOrDie(Grammar.class, context.kompiled.getAbsolutePath() + "/pgm/newParser.bin");
 
-            String contentString = new String(content);
-            Parser parser = new Parser(contentString);
+            Parser parser = new Parser(content);
             out = parser.parse(grammar.get(startSymbol.toString()), 0);
             if (context.globalOptions.debug)
                 System.err.println("Raw: " + out + "\n");
             try {
+                // only the unexpected character type of errors should be checked in this block
                 out = new TreeCleanerVisitor(context).visitNode(out);
-                out = new MakeConsList(context).visitNode(out);
-                if (context.globalOptions.debug)
-                    System.err.println("Clean: " + out + "\n");
-                out = new PriorityFilter(context).visitNode(out);
-                out = new PreferAvoidFilter(context).visitNode(out);
-                if (context.globalOptions.debug)
-                    System.err.println("Filtered: " + out + "\n");
-                out = new AmbFilter(context).visitNode(out);
-                out = new RemoveBrackets(context).visitNode(out);
-                out = new FlattenTerms(context).visitNode(out);
             } catch (ParseFailedException te) {
                 ParseError perror = parser.getErrors();
 
-                String msg = contentString.length() == perror.position ?
+                String msg = content.length() == perror.position ?
                     "Parse error: unexpected end of file." :
-                    "Parse error: unexpected character '" + contentString.charAt(perror.position) + "'.";
+                    "Parse error: unexpected character '" + content.charAt(perror.position) + "'.";
                 Location loc = new Location(perror.line, perror.column,
                                             perror.line, perror.column + 1);
                 throw new ParseFailedException(new KException(
                         ExceptionType.ERROR, KExceptionGroup.INNER_PARSER, msg, source, loc));
             }
+            out = new MakeConsList(context).visitNode(out);
+            if (context.globalOptions.debug)
+                System.err.println("Clean: " + out + "\n");
+            out = new PriorityFilter(context).visitNode(out);
+            out = new PreferAvoidFilter(context).visitNode(out);
+            if (context.globalOptions.debug)
+                System.err.println("Filtered: " + out + "\n");
+            out = new AmbFilter(context).visitNode(out);
+            out = new RemoveBrackets(context).visitNode(out);
+            out = new FlattenTerms(context).visitNode(out);
             out = new ResolveVariableAttribute(context).visitNode(out);
         } else {
-            out = loadPgmAst(new String(content), source, startSymbol, context);
+            out = loadPgmAst(content, source, startSymbol, context);
             out = new ResolveVariableAttribute(context).visitNode(out);
         }
         Stopwatch.instance().printIntermediate("Parsing Program");
 
+        return (Term) out;
+    }
+
+    public static Term parseInModule(String content, Source source, Sort startSymbol,
+                                  String moduleName, Context context) throws ParseFailedException {
+        @SuppressWarnings("unchecked")
+        Map<String, Grammar> grammars = BinaryLoader.instance().loadOrDie(Map.class, context.kompiled.getAbsolutePath() + "/pgm/newModuleParsers.bin");
+
+        ASTNode out;
+        Parser parser = new Parser(content);
+        Grammar grammar = grammars.get(moduleName);
+        if (grammar == null) {
+            String msg = "Could not find module: " + moduleName + " when trying to parseInModule.";
+            throw new ParseFailedException(new KException(
+                    ExceptionType.ERROR, KExceptionGroup.INNER_PARSER, msg, source, null));
+        }
+        NonTerminal nt = grammar.get(startSymbol.toString());
+        if (nt == null) {
+            String msg = "Could not find start symbol: " + startSymbol + " when trying to parseInModule " + moduleName;
+            throw new ParseFailedException(new KException(
+                    ExceptionType.ERROR, KExceptionGroup.INNER_PARSER, msg, source, null));
+        }
+        out = parser.parse(nt, 0);
+        if (context.globalOptions.debug)
+            System.err.println("Raw: " + out + "\n");
+        try {
+            // only the unexpected character type of errors should be checked in this block
+            out = new TreeCleanerVisitor(context).visitNode(out);
+        } catch (ParseFailedException te) {
+            ParseError perror = parser.getErrors();
+
+            String msg = content.length() == perror.position ?
+                    "Parse error: unexpected end of file." :
+                    "Parse error: unexpected character '" + content.charAt(perror.position) + "'.";
+            Location loc = new Location(perror.line, perror.column,
+                    perror.line, perror.column + 1);
+            throw new ParseFailedException(new KException(
+                    ExceptionType.ERROR, KExceptionGroup.INNER_PARSER, msg, source, loc));
+        }
+        out = new MakeConsList(context).visitNode(out);
+        if (context.globalOptions.debug)
+            System.err.println("Clean: " + out + "\n");
+        out = new PriorityFilter(context).visitNode(out);
+        out = new PreferAvoidFilter(context).visitNode(out);
+        if (context.globalOptions.debug)
+            System.err.println("Filtered: " + out + "\n");
+        out = new AmbFilter(context).visitNode(out);
+        out = new RemoveBrackets(context).visitNode(out);
+        out = new FlattenTerms(context).visitNode(out);
+        out = new ResolveVariableAttribute(context).visitNode(out);
         return (Term) out;
     }
 }
