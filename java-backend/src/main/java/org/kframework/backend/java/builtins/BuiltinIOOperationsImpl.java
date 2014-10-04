@@ -10,7 +10,9 @@ import org.kframework.backend.java.kil.KSequence;
 import org.kframework.backend.java.kil.KilFactory;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
+import org.kframework.kil.GeneratedSource;
 import org.kframework.kil.Sort;
+import org.kframework.kil.Source;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.exceptions.ParseFailedException;
 import org.kframework.krun.KRunOptions.ConfigurationCreationOptions;
@@ -18,6 +20,7 @@ import org.kframework.krun.RunProcess;
 import org.kframework.krun.api.io.FileSystem;
 
 import com.google.inject.Inject;
+import org.kframework.parser.ProgramLoader;
 
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
@@ -147,7 +150,27 @@ public class BuiltinIOOperationsImpl implements BuiltinIOOperations {
             term = term.evaluate(termContext);
             return term;
         } catch (ParseFailedException e) {
-            return processIOException("noparse", termContext);
+            String line = "" + e.getKException().getLocation().lineStart;
+            String col  = "" + e.getKException().getLocation().columnStart;
+            return processIOException("noparse", StringToken.of(e.getMessage() + " Line: " + line + " Column: " + col), termContext);
+        }
+    }
+
+    @Override
+    public Term parseInModule(StringToken input, StringToken startSymbol, StringToken moduleName, TermContext termContext) {
+        try {
+            org.kframework.kil.Term kast = ProgramLoader.parseInModule(
+                    input.stringValue(),
+                    new GeneratedSource(this.getClass()),
+                    Sort.of(startSymbol.stringValue()),
+                    moduleName.stringValue(), context);
+            Term term = kilFactory.term(kast);
+            term = term.evaluate(termContext);
+            return term;
+        } catch (ParseFailedException e) {
+            String line = "" + e.getKException().getLocation().lineStart;
+            String col  = "" + e.getKException().getLocation().columnStart;
+            return processIOException("noparse", StringToken.of(e.getMessage() + " Line: " + line + " Column: " + col), termContext);
         }
     }
 
