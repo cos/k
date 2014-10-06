@@ -37,10 +37,10 @@ We selected this core of K based on the following two criteria:
 
 
 // Module defining only the sorts K and KString, useful for modularity
-module BASIC-K [ hookNamespace(org.kframework.kore) ]
-  syntax K   //[...]   // no constructors at this stage
+module BASIC-K [ hookNamespace(`org.kframework.kore`(.::KList)) ]
+  syntax K 			//  no constructors at this stage
   syntax KString ::= r"[\\\"]([^\\\"\\n\\r\\\\]|[\\\\][nrtf\\\"\\\\])*[\\\"]"   [token, noAutoReject, onlyLabel, hook]
-         // optionally qualified strings, like in Scala "abc", i"abc", r"a*bc", etc.
+  // optionally qualified strings, like in Scala "abc", i"abc", r"a*bc", etc.
 endmodule
 
 
@@ -101,7 +101,7 @@ endmodule
 module OUTER-KORE [ hookNamespace(org.kframework.kore.outer) ]
   imports BASIC-K
 
-  syntax KDefinition   ::= KRequireList KModuleList   [ hook ]
+  syntax KDefinition   ::= KRequireList KModuleList   [ klabel(#KDefinition), hook ]
 
   syntax KRequire      ::= "require" KString          [ klabel(#KRequire), hook ]
   // Radu: These list declarations are a bit tricky (no separator, and the empty element is null).
@@ -113,6 +113,7 @@ module OUTER-KORE [ hookNamespace(org.kframework.kore.outer) ]
   // like to keep this at a minimum. So are associative lists something different enough to deserve special treatment?
   syntax KRequireList  ::= KRequire KRequireList      [ klabel(#KRequireList), assoc, comm, unit(#emptyKRequireList) ]
   syntax KRequireList  ::= ""                         [ klabel(#emptyKRequireList), onlyLabel]
+  
 
   syntax KModule       ::= "module" KModuleName KAttributesDeclaration KImportList KSentenceList "endmodule" [ klabel(#Module), hook ]
   syntax KModuleList   ::= KModule KModuleList        														 [ klabel(#KModuleList), assoc, comm, unit(#emptyKModuleList) ]
@@ -133,6 +134,8 @@ module OUTER-KORE [ hookNamespace(org.kframework.kore.outer) ]
   syntax KSentence ::= "rule"          K "requires" K "ensures" K KAttributesDeclaration   [ klabel(#Rule), hook ]
   syntax KSentence ::= "context"       K "requires" K             KAttributesDeclaration   [ klabel(#Context), hook ]
 
+  // syntax KSentence ::= r"//.*\\n"  [ klabel(#KComment(.::KList)) ]
+
   syntax KProduction ::= ""                      [ klabel(#emptyKProduction), onlyLabel]
   syntax KProduction ::= KProductionItem KProduction [ klabel(#KProduction), assoc, unit(#emptyKProduction) ]
   syntax KProductionItem ::= KSort               [ hook(NonTerminal) ] // non-terminal
@@ -149,7 +152,7 @@ endmodule
 
 
 
-module KORE
+module KORE [ hookNamespace(org.kframework.kore.outer) ]
   imports OUTER-KORE
   imports K
   configuration `<k>`($PGM)  // how do I put the sort restriction for this

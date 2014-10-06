@@ -31,7 +31,7 @@ case class KApply(klabel: KLabel, klist: KList, att: Attributes = Attributes()) 
   def copy(klist: KList, att: Attributes) = KApply(klabel, klist, att)
 }
 
-case class KToken(s: String, sort: String, att: Attributes = Attributes()) extends KItem
+case class KToken(s: String, sort: Sort, att: Attributes = Attributes()) extends KItem
 
 trait KLabel
 
@@ -81,3 +81,5 @@ object KList {
   def apply(l: KList) = l
   implicit def inject(k: K): KList = List(k)
 }
+
+case class Sort(name: String)

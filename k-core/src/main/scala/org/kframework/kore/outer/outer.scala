@@ -1,7 +1,8 @@
 package org.kframework.kore.outer
 
-import org.kframework.kast
-import org.kframework.kast.Attributes
+import org.kframework.kore
+import org.kframework.kore.Attributes
+import org.kframework.kore.Sort
 import scala.util.matching.Regex
 
 case class Definition(requires: Set[Require], modules: Set[Module])
@@ -14,16 +15,16 @@ case class Module(name: String, att: Attributes = Attributes(), sentences: Set[S
 // hooked but different from core, Import is a sentence here
 
 trait Sentence { // marker
-  val attributes: kast.Attributes
+  val attributes: Attributes
 } 
 
 case class Rule(
   label: String,
-  body: kast.Term,
+  body: kore.K,
   attributes: Attributes) extends Sentence
   with RuleToString
 
-case class Configuration(contents: kast.Term, attributes: Attributes = Attributes()) extends Sentence // hooked
+case class Configuration(contents: kore.K, attributes: Attributes = Attributes()) extends Sentence // hooked
   with ConfigurationToString
 
 case class ModuleComment(comment: String, attributes: Attributes = Attributes()) extends Sentence
@@ -36,9 +37,9 @@ case class SyntaxPriority(higher: String, lower: String, attributes: Attributes 
 //  val Left, Right, NonAssoc, Unspecified = Value
 //}
 
-case class SyntaxSort(sort: kast.Sort, attributes: Attributes = Attributes()) extends Sentence
+case class SyntaxSort(sort: Sort, attributes: Attributes = Attributes()) extends Sentence
 
-case class SyntaxProduction(sort: kast.Sort, items: Seq[ProductionItem], attributes: Attributes = Attributes()) extends Sentence // hooked but problematic, see kast-core.k 
+case class SyntaxProduction(sort: Sort, items: Seq[ProductionItem], attributes: Attributes = Attributes()) extends Sentence // hooked but problematic, see kast-core.k 
   with SyntaxProductionToString {
   def klabel = "'" + (items map {
     case _: NonTerminal => "_"
@@ -54,13 +55,12 @@ trait ProductionItem // marker
 //}
 
 
-//case class UserList(sort: kast.Sort, separator: String, attributes: kast.Attributes) extends Production { // different from kast core!
+//case class UserList(sort: Sort, separator: String, attributes: kast.Attributes) extends Production { // different from kast core!
 //  def klabel = "'_" + separator + "_"
 //}
 
-case class NonTerminal(sort: kast.Sort) extends ProductionItem // hooked but it seems we have an extra "name" here
+case class NonTerminal(sort: Sort) extends ProductionItem // hooked but it seems we have an extra "name" here
 case class RegexTerminal(regex: Regex) extends ProductionItem // the equivalent for this is actually a KProduction in kore kast
 case class Terminal(value: String) extends ProductionItem // hooked
   with TerminalToString
   
-case class KSort(name: String)

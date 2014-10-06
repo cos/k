@@ -12,8 +12,7 @@ trait DefinitionToString {
 
 trait RuleToString {
   self: Rule =>
-  override def toString = "  rule " + body + (
-    if (attributes.isEmpty) "" else attributes)
+  override def toString = "  rule " + body + attributes
 }
 
 trait ConfigurationToString {
@@ -23,7 +22,7 @@ trait ConfigurationToString {
 
 trait SyntaxProductionToString {
   self: SyntaxProduction =>
-  override def toString = "" + items.mkString(" ") + (if (attributes.isEmpty) "" else " " + attributes)
+  override def toString = "" + items.mkString(" ") + attributes
 }
 
 //trait BlockToString {
