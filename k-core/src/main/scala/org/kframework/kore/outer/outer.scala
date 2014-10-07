@@ -1,22 +1,28 @@
 package org.kframework.kore.outer
 
 import org.kframework.kore
-import org.kframework.kore.Attributes
 import org.kframework.kore.Sort
 import scala.util.matching.Regex
+import org.kframework.kore.Attributes
+
+trait ParserPiece
 
 case class Definition(requires: Set[Require], modules: Set[Module])
-  extends DefinitionToString
+  extends DefinitionToString with ParserPiece
 
-case class Require(file: java.io.File) 
+case class Require(file: java.io.File)
 
 case class Module(name: String, att: Attributes = Attributes(), sentences: Set[Sentence])
-  extends ModuleToString
+  extends ModuleToString with ParserPiece {
+  val labelsToProductions: Map[kore.KLabel, Set[SyntaxProduction]] = {
+    ???
+  }
+}
 // hooked but different from core, Import is a sentence here
 
 trait Sentence { // marker
   val attributes: Attributes
-} 
+}
 
 case class Rule(
   label: String,
@@ -31,15 +37,15 @@ case class ModuleComment(comment: String, attributes: Attributes = Attributes())
 
 case class Import(what: String, attributes: Attributes = Attributes()) extends Sentence // hooked
 
-case class SyntaxPriority(higher: String, lower: String, attributes: Attributes = Attributes()) extends Sentence
+case class SyntaxPriority(higher: String, lower: String, attributes: Attributes = Attributes()) extends Sentence with ParserPiece
 
 //object Associativity extends Enumeration {
 //  val Left, Right, NonAssoc, Unspecified = Value
 //}
 
-case class SyntaxSort(sort: Sort, attributes: Attributes = Attributes()) extends Sentence
+case class SyntaxSort(sort: Sort, attributes: Attributes = Attributes()) extends Sentence with ParserPiece
 
-case class SyntaxProduction(sort: Sort, items: Seq[ProductionItem], attributes: Attributes = Attributes()) extends Sentence // hooked but problematic, see kast-core.k 
+case class SyntaxProduction(sort: Sort, items: Seq[ProductionItem], attributes: Attributes = Attributes()) extends Sentence with ParserPiece // hooked but problematic, see kast-core.k 
   with SyntaxProductionToString {
   def klabel = "'" + (items map {
     case _: NonTerminal => "_"
@@ -53,7 +59,6 @@ trait ProductionItem // marker
 //  val attributes: kast.Attributes
 //  def klabel: String
 //}
-
 
 //case class UserList(sort: Sort, separator: String, attributes: kast.Attributes) extends Production { // different from kast core!
 //  def klabel = "'_" + separator + "_"

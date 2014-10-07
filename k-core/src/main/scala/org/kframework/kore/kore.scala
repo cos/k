@@ -1,10 +1,23 @@
 package org.kframework.kore
 
-case class Attributes(m: Map[String, String] = Map())
-
 trait Context
 
+object KORE {
+  type KList = List[K]
+}
+
 import KORE._
+
+object Attributes {
+  def apply(klist: KList): Attributes = new Attributes(klist)
+  def apply(): Attributes = new Attributes(List[K]())
+}
+
+final class Attributes(val items: KList) extends Collection[Attributes] {
+  val klabel = KLabel("#Attributes")
+  val att = ???
+  def copy(klist: KList, att: Attributes) = new Attributes(klist)
+}
 
 trait HasAttributes {
   def att: Attributes
@@ -21,13 +34,13 @@ object KString { def apply(s: String) = s }
 
 trait KItem extends K
 
-trait KAppLike[This <: IndexedSeq[K]] extends KItem with Collection[This] with HasAttributes {
+trait KApplyLike[This <: IndexedSeq[K]] extends KItem with Collection[This] with HasAttributes with KApplyToString {
   def klabel: KLabel
   def klist: KList
   protected val items = klist
 }
 
-case class KApply(klabel: KLabel, klist: KList, att: Attributes = Attributes()) extends KItem with KAppLike[KApply] with Collection[KApply] {
+case class KApply(klabel: KLabel, klist: KList, att: Attributes = Attributes()) extends KItem with KApplyLike[KApply] with Collection[KApply] {
   def copy(klist: KList, att: Attributes) = KApply(klabel, klist, att)
 }
 

@@ -5,13 +5,11 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.IndexedSeqLike
 import scala.collection.mutable.ListBuffer
 
-object KORE {
-  type KList = List[K]
-}
+import KORE._
 
 trait GenericCollection[Elem, This <: IndexedSeq[Elem]] extends IndexedSeq[Elem] with IndexedSeqLike[Elem, This] {
   protected val items: List[Elem]
-  override protected [this] def newBuilder: Builder[Elem, This] =
+  override protected[this] def newBuilder: Builder[Elem, This] =
     GenericCollection.newBuilder(copy)
 
   def copy(s: List[Elem]): This

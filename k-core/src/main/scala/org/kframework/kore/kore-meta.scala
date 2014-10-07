@@ -1,7 +1,9 @@
 package org.kframework.kore
 
 object meta {
-  implicit class MetaKLabel(l: KLabel) extends KAppLike[MetaKLabel] {
+  import KORE._
+  
+  implicit class MetaKLabel(l: KLabel) extends KApplyLike[MetaKLabel] {
     val klabel = KLabel("#klabel")
     val klist = l match {
       case ConcreteKLabel(name) => List(KToken(name, Sort("String")))
@@ -13,21 +15,21 @@ object meta {
     }
   }
 
-  implicit class MetaKList(val l: List[K]) extends KAppLike[MetaKList] {
+  implicit class MetaKList(val l: List[K]) extends KApplyLike[MetaKList] {
     val klabel = KLabel("#klist")
     val klist = l
     val att = Attributes()
     def copy(s: List[K], att: Attributes) = new MetaKList(s)
   }
 
-  implicit class MetaKSeq(val s: KSequence) extends KAppLike[MetaKSeq] {
+  implicit class MetaKSeq(val s: KSequence) extends KApplyLike[MetaKSeq] {
     val klabel = KLabel("#kseq")
     val klist = s.items
     val att = s.last.att
     def copy(seq: List[K], att: Attributes) = MetaKSeq(new KSequence(seq, seq.last.att))
   }
 
-  implicit class MetaKVariable(val v: KVariable) extends KAppLike[MetaKVariable] {
+  implicit class MetaKVariable(val v: KVariable) extends KApplyLike[MetaKVariable] {
     val klabel = KLabel("#kvariable")
     val klist = List(KToken(v.name, Sort("String")))
     val att = v.att
@@ -36,7 +38,7 @@ object meta {
     }
   }
 
-  implicit class MetaRewrite(val r: KRewrite) extends KAppLike[MetaRewrite] {
+  implicit class MetaRewrite(val r: KRewrite) extends KApplyLike[MetaRewrite] {
     val klabel = KLabel("#krewrite")
     val klist = List(r.left, r.right)
     val att = r.att
