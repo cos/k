@@ -4,6 +4,7 @@ trait Context
 
 object KORE {
   type KList = List[K]
+  implicit def StringToKString(s: String) = KString(s)
 }
 
 import KORE._
@@ -13,10 +14,8 @@ object Attributes {
   def apply(): Attributes = new Attributes(List[K]())
 }
 
-final class Attributes(val items: KList) extends Collection[Attributes] {
-  val klabel = KLabel("#Attributes")
-  val att = ???
-  def copy(klist: KList, att: Attributes) = new Attributes(klist)
+final class Attributes(val items: KList) extends GenericCollection[K, Attributes] {
+  def copy(klist: KList) = new Attributes(klist)
 }
 
 trait HasAttributes {
@@ -30,21 +29,21 @@ trait Collection[This <: IndexedSeq[K]] extends GenericCollection[K, This] with 
   def copy(klist: KList): This = copy(klist, att)
 }
 
-object KString { def apply(s: String) = s }
+case class KString(s: String)
 
 trait KItem extends K
 
-trait KApplyLike[This <: IndexedSeq[K]] extends KItem with Collection[This] with HasAttributes with KApplyToString {
+trait KApplyLike[This <: IndexedSeq[K]] extends KItem with Collection[This] with HasAttributes {
   def klabel: KLabel
   def klist: KList
   protected val items = klist
 }
 
-case class KApply(klabel: KLabel, klist: KList, att: Attributes = Attributes()) extends KItem with KApplyLike[KApply] with Collection[KApply] {
+case class KApply(klabel: KLabel, klist: KList, att: Attributes = Attributes()) extends KItem with Collection[KApply] with KApplyLike[KApply] {
   def copy(klist: KList, att: Attributes) = KApply(klabel, klist, att)
 }
 
-case class KToken(s: String, sort: Sort, att: Attributes = Attributes()) extends KItem
+case class KToken(sort: Sort, s: KString, att: Attributes = Attributes()) extends KItem
 
 trait KLabel
 

@@ -6,12 +6,12 @@ object meta {
   implicit class MetaKLabel(l: KLabel) extends KApplyLike[MetaKLabel] {
     val klabel = KLabel("#klabel")
     val klist = l match {
-      case ConcreteKLabel(name) => List(KToken(name, Sort("String")))
+      case ConcreteKLabel(name) => List(KToken(Sort("String"), name))
       case v: KVariable => List(v) 
     }
     val att = Attributes()
     def copy(items: List[K], att: Attributes) = items match {
-      case Seq(KToken(s, Sort("String"), _)) => MetaKLabel(KLabel(s))
+      case Seq(KToken(Sort("String"), s, _)) => MetaKLabel(KLabel(s.s))
     }
   }
 
@@ -31,10 +31,10 @@ object meta {
 
   implicit class MetaKVariable(val v: KVariable) extends KApplyLike[MetaKVariable] {
     val klabel = KLabel("#kvariable")
-    val klist = List(KToken(v.name, Sort("String")))
+    val klist = List(KToken(Sort("String"), v.name))
     val att = v.att
     def copy(klist: List[K], att: Attributes) = klist match {
-      case List(KToken(name, Sort("String"), _)) => MetaKVariable(KVariable(name, att))
+      case List(KToken(Sort("String"), name, _)) => MetaKVariable(KVariable(name.s, att))
     }
   }
 
