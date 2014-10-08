@@ -51,7 +51,9 @@ object KLabel {
   def apply(name: String) = ConcreteKLabel(name)
 }
 
-case class ConcreteKLabel(name: String) extends KLabel
+case class ConcreteKLabel(name: String) extends KLabel {
+  def apply(klist: K*) = KApply(this, klist.toList)
+}
 
 case class EmptyK(att: Attributes = Attributes()) extends K
 
@@ -95,3 +97,4 @@ object KList {
 }
 
 case class Sort(name: String)
+

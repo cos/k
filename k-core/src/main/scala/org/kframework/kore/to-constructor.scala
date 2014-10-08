@@ -30,7 +30,7 @@ object HasToConstructor {
 
   implicit class SortHasToConstructor(s: Sort) extends HasToConstructor {
     def toConstructor = "Sort(" + s.name.toConstructor + ")"
-  }
+  } 
 
   implicit class ConcreteKLabelHasToConstructor(klabel: ConcreteKLabel) extends HasToConstructor {
     def toConstructor = "KLabel(" + klabel.name.toConstructor + ")"

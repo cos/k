@@ -12,7 +12,12 @@ case class Definition(requires: Set[Require], modules: Set[Module])
 
 case class Require(file: java.io.File)
 
-case class Module(name: String, att: Attributes = Attributes(), sentences: Set[Sentence])
+object Module {
+  def apply(name: String, att: Attributes, sentences: Set[Sentence]): Module = 
+    Module(name, sentences, att)
+}
+
+case class Module(name: String, sentences: Set[Sentence], att: Attributes = Attributes())
   extends ModuleToString with ParserPiece {
   val labelsToProductions: Map[kore.KLabel, Set[SyntaxProduction]] = {
     ???
@@ -65,7 +70,9 @@ trait ProductionItem // marker
 //}
 
 case class NonTerminal(sort: Sort) extends ProductionItem // hooked but it seems we have an extra "name" here
-case class RegexTerminal(regex: Regex) extends ProductionItem // the equivalent for this is actually a KProduction in kore kast
+
+
+case class RegexTerminal(regex: String) extends ProductionItem // the equivalent for this is actually a KProduction in kore kast
 case class Terminal(value: String) extends ProductionItem // hooked
   with TerminalToString
   
