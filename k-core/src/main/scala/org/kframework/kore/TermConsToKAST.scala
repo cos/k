@@ -11,7 +11,7 @@ object TermConsToKAST {
       val attributesAsK =
         t.getAttributes() map {
           case (_, a) => KApply(KLabel(a.getKey().toString()),
-            List(KToken(Sort("String"), KString(a.getValue().toString()))))
+            KList(KToken(Sort("String"), KString(a.getValue().toString()))))
         }
 
       val loc = t.getLocation()
@@ -26,8 +26,8 @@ object TermConsToKAST {
 
       KApply(
         KLabel(t.getProduction().getKLabel()),
-        t.getContents() map { visit(_) } toList,
-        Attributes(attWithLocationInfo toList))
+        KList(t.getContents() map { visit(_) } :_*),
+        Attributes(KList(attWithLocationInfo.toSeq :_*)))
     case t: kil.Constant =>
       KToken(Sort(t.getSort().getName()), KString(t.getValue()))
   }
