@@ -1,60 +1,49 @@
 package org.kframework.kore
 
-import scala.collection.mutable.Builder
-import scala.collection.generic.CanBuildFrom
-import scala.collection.LinearSeqLike
-import scala.collection.mutable.ListBuffer
+import scala.collection._
 import KORE._
-import scala.collection.LinearSeq
 
 // not sure this is the best approach -- might want a LinearSeqOptimized instead
-trait GenericCollection[Elem, +This <: GenericCollection[Elem, This]] extends LinearSeq[Elem] with LinearSeqLike[Elem, This] {
+trait GenericCollection[Elem, +This <: GenericCollection[Elem, This]] extends LinearSeq[Elem] with LinearSeqOptimized[Elem, This] {
   self: This =>
-  protected val items: Seq[Elem]
-  override protected[this] def newBuilder: Builder[Elem, This] =
+  protected val items: LinearSeq[Elem]
+  override protected[this] def newBuilder: mutable.Builder[Elem, This] =
     GenericCollection.newBuilder(copy)
+  def copy(s: LinearSeq[Elem]): This
 
-  def copy(s: Seq[Elem]): This
-
-  def apply(idx: Int) = items(idx)
-  def length = items.length
+  override def isEmpty: Boolean = items.isEmpty
+  override def head: Elem = items.head
+  override def tail: This = copy(items.tail)
 }
 
 object GenericCollection {
-  def newBuilder[Elem, C <: LinearSeq[Elem]](fromList: List[Elem] => C): Builder[Elem, C] = new ListBuffer mapResult fromList
+  def newBuilder[Elem, C <: LinearSeq[Elem]](fromList: List[Elem] => C): mutable.Builder[Elem, C] = new mutable.ListBuffer mapResult fromList
 }
 
-trait Collection[This <: Collection[This]] extends GenericCollection[K, This] with HasAttributes {
-  self: This =>
-  def copy(klist: KList, att: Attributes): This
-  def copy(klist: KList): This = copy(klist, att)
-  def copy(klist: Seq[K]): This = copy(new KList(klist), att)
+trait CanBuildGeneric[Elem, T <: GenericCollection[Elem, T]] {
+  def apply(items: Elem*): T
+
+  def copy(seq: Seq[Elem]): T = apply(seq: _*)
+
+  implicit def canBuildFrom: generic.CanBuildFrom[T, Elem, T] =
+    new generic.CanBuildFrom[T, Elem, T] {
+      def apply(): mutable.Builder[Elem, T] = GenericCollection.newBuilder[Elem, T](copy(_: List[Elem]))
+      def apply(from: T): mutable.Builder[Elem, T] = GenericCollection.newBuilder(copy(_: List[Elem]))
+    }
 }
 
-trait CanBuild[T <: Collection[T]] {
+trait CanBuild[T <: KCollection[T]] {
   def apply(seq: KList, att: Attributes): T
 
-  def apply(kItems: K*): T = apply(new KList(kItems), Attributes())
+  def apply(kItems: K*): T = apply(new KList(kItems.toList), Attributes())
 
-  def copy(seq: Seq[K], att: Attributes) = apply(new KList(seq), att)
+  def copy(seq: Seq[K], att: Attributes) = apply(new KList(seq.toList), att)
 
-  implicit def canBuildFrom: CanBuildFrom[T, K, T] =
-    new CanBuildFrom[T, K, T] {
-      def apply(): Builder[K, T] = GenericCollection.newBuilder[K, T](copy(_: List[K], Attributes()))
-      def apply(from: T): Builder[K, T] = GenericCollection.newBuilder(copy(_: List[K], from.att))
+  implicit def canBuildFrom: generic.CanBuildFrom[T, K, T] =
+    new generic.CanBuildFrom[T, K, T] {
+      def apply(): mutable.Builder[K, T] = GenericCollection.newBuilder[K, T](copy(_: List[K], Attributes()))
+      def apply(from: T): mutable.Builder[K, T] = GenericCollection.newBuilder(copy(_: List[K], from.att))
     }
 }
 
 trait Context
-
-object KORE {
-  implicit def StringToKString(s: String) = KString(s)
-}
-
-// will probably get rid of this if going for the simplified meta-level
-trait KApplyLike[This <: KApplyLike[This]] extends KItem with Collection[This] with HasAttributes {
-  self: This =>
-  def klabel: KLabel
-  def klist: KList
-  protected val items = klist
-}
