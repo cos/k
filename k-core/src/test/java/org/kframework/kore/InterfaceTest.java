@@ -13,9 +13,8 @@ public class InterfaceTest {
 				KApply(KLabel("_+_"),
 						KList(KVariable("A"), KToken(Sort("Int"), KString("0")))),
 				KVariable("A"));
-		
-		k.att();
-		k.left();
-		k.right();
+
+		// Navigating it
+		KLabel theLabel = ((KApply) k.left()).klabel();
 	}
 }

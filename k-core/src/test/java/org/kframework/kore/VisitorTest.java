@@ -18,7 +18,7 @@ public class VisitorTest {
 
 		@Override
 		public K transform(KToken k) {
-			return k.copy();
+			return KVariable("T");
 		}
 
 		@Override
@@ -29,15 +29,11 @@ public class VisitorTest {
 
 	@Test
 	public void testFoo() {
-		FooTransformer fooTransformer = new FooTransformer() {
-			@Override
-			public K transform(KToken k) {
-				return KVariable(k.s().s());
-			}
-		};
+		FooTransformer fooTransformer = new FooTransformer();
 
-		K transformed = fooTransformer.transform(KToken(Sort("foo"),
-				KString("bla")));
+		KToken someToken = KToken(Sort("foo"), KString("bla"));
+
+		K transformed = fooTransformer.transform(someToken);
 
 		System.out.println(transformed);
 	}
