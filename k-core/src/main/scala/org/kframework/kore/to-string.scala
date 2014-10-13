@@ -1,7 +1,7 @@
 package org.kframework.kore
 
 trait KApplyToString {
-  self: KApplyLike[_] =>
+  self: KApply =>
 
   override def toString = {
     val childrenString = if (klist.isEmpty) "" else "(" + klist.sortBy(_.toString).mkString(", ") + ")"

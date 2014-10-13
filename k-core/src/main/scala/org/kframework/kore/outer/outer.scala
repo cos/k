@@ -13,16 +13,12 @@ case class Definition(requires: Set[Require], modules: Set[Module])
 case class Require(file: java.io.File)
 
 object Module {
-  def apply(name: String, att: Attributes, sentences: Set[Sentence]): Module = 
+  def apply(name: String, att: Attributes, sentences: Set[Sentence]): Module =
     Module(name, sentences, att)
 }
 
 case class Module(name: String, sentences: Set[Sentence], att: Attributes = Attributes())
-  extends ModuleToString with ParserPiece {
-  val labelsToProductions: Map[kore.KLabel, Set[SyntaxProduction]] = {
-    ???
-  }
-}
+  extends ModuleToString with ParserPiece with KLabelMappings
 // hooked but different from core, Import is a sentence here
 
 trait Sentence { // marker
@@ -51,14 +47,9 @@ case class SyntaxPriority(higher: String, lower: String, attributes: Attributes 
 case class SyntaxSort(sort: Sort, attributes: Attributes = Attributes()) extends Sentence with ParserPiece
 
 case class SyntaxProduction(sort: Sort, items: Seq[ProductionItem], attributes: Attributes = Attributes()) extends Sentence with ParserPiece // hooked but problematic, see kast-core.k 
-  with SyntaxProductionToString {
-  def klabel = "'" + (items map {
-    case _: NonTerminal => "_"
-    case Terminal(value) => value
-  } mkString)
-}
+  with SyntaxProductionToString
 
-trait ProductionItem // marker
+sealed trait ProductionItem // marker
 
 //trait Production {
 //  val attributes: kast.Attributes
@@ -70,9 +61,11 @@ trait ProductionItem // marker
 //}
 
 case class NonTerminal(sort: Sort) extends ProductionItem // hooked but it seems we have an extra "name" here
-
-
 case class RegexTerminal(regex: String) extends ProductionItem // the equivalent for this is actually a KProduction in kore kast
 case class Terminal(value: String) extends ProductionItem // hooked
   with TerminalToString
-  
+
+/* Helper constructors */
+object NonTerminal {
+  def apply(sort: String): NonTerminal = NonTerminal(Sort(sort))
+}

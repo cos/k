@@ -36,9 +36,9 @@ object HasToConstructor {
     def toConstructor = "KLabel(" + klabel.name.toConstructor + ")"
   }
 
-  implicit class KApplyHasToConstructor(kapply: KApplyLike[_]) extends HasToConstructor {
+  implicit class KApplyHasToConstructor(kapply: KApply) extends HasToConstructor {
     def toConstructor = "KApply(" +
-      kapply.klabel.toConstructor + "," + "List[K](" +
+      kapply.klabel.toConstructor + "," + "KList(" +
       (kapply.klist map { _.toConstructor }).mkString(", ") + "))"
   }
 }
