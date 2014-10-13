@@ -9,9 +9,13 @@ public class InterfaceTest {
 	public void example() {
 		// Creating "A + 0 => A" programmatically
 
-		KRewrite(
+		KRewrite k = KRewrite(
 				KApply(KLabel("_+_"),
 						KList(KVariable("A"), KToken(Sort("Int"), KString("0")))),
 				KVariable("A"));
+		
+		k.att();
+		k.left();
+		k.right();
 	}
 }
