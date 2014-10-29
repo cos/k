@@ -4,10 +4,8 @@ package org.kframework.parser;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.kframework.backend.Backend;
 import org.kframework.compile.checks.CheckListDecl;
@@ -15,40 +13,16 @@ import org.kframework.compile.checks.CheckSortTopUniqueness;
 import org.kframework.compile.checks.CheckStreams;
 import org.kframework.compile.checks.CheckSyntaxDecl;
 import org.kframework.compile.utils.CheckVisitorStep;
-import org.kframework.kil.ASTNode;
 import org.kframework.kil.Definition;
-import org.kframework.kil.DefinitionItem;
-import org.kframework.kil.Sort;
-import org.kframework.kil.Source;
-import org.kframework.kil.Term;
 import org.kframework.kil.loader.AddAutoIncludedModulesVisitor;
 import org.kframework.kil.loader.CollectConfigCellsVisitor;
 import org.kframework.kil.loader.CollectModuleImportsVisitor;
 import org.kframework.kil.loader.Context;
-import org.kframework.kil.loader.JavaClassesFactory;
 import org.kframework.kil.loader.RemoveUnusedModules;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
-import org.kframework.parser.outer.Outer;
-import org.kframework.parser.concrete.disambiguate.AmbDuplicateFilter;
-import org.kframework.parser.concrete.disambiguate.AmbFilter;
-import org.kframework.parser.concrete.disambiguate.BestFitFilter;
-import org.kframework.parser.concrete.disambiguate.CellEndLabelFilter;
-import org.kframework.parser.concrete.disambiguate.CellTypesFilter;
-import org.kframework.parser.concrete.disambiguate.CorrectCastPriorityFilter;
+import org.kframework.utils.errorsystem.ParseFailedException;
+import org.kframework.parser.concrete2.Grammar;
+import org.kframework.parser.concrete.DefinitionLocalKParser;
 import org.kframework.parser.concrete.disambiguate.NormalizeASTTransformer;
-import org.kframework.parser.concrete.disambiguate.CorrectKSeqFilter;
-import org.kframework.parser.concrete.disambiguate.CorrectRewritePriorityFilter;
-import org.kframework.parser.concrete.disambiguate.FlattenListsFilter;
-import org.kframework.parser.concrete.disambiguate.GetFitnessUnitKCheckVisitor;
-import org.kframework.parser.concrete.disambiguate.GetFitnessUnitTypeCheckVisitor;
-import org.kframework.parser.concrete.disambiguate.PreferAvoidFilter;
-import org.kframework.parser.concrete.disambiguate.PreferDotsFilter;
-import org.kframework.parser.concrete.disambiguate.PriorityFilter;
-import org.kframework.parser.concrete.disambiguate.SentenceVariablesFilter;
-import org.kframework.parser.concrete.disambiguate.TypeInferenceSupremumFilter;
-import org.kframework.parser.concrete.disambiguate.TypeSystemFilter;
-import org.kframework.parser.concrete.disambiguate.TypeSystemFilter2;
-import org.kframework.parser.concrete.disambiguate.VariableTypeInferenceFilter;
 import org.kframework.parser.generator.OuterParser;
 import org.kframework.parser.generator.CacheLookupFilter;
 import org.kframework.parser.generator.Definition2SDF;
@@ -62,14 +36,11 @@ import org.kframework.parser.utils.ResourceExtractor;
 import org.kframework.parser.utils.Sdf2Table;
 import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.Stopwatch;
-import org.kframework.utils.XmlLoader;
 import org.kframework.utils.errorsystem.KException;
 import org.kframework.utils.errorsystem.KException.ExceptionType;
 import org.kframework.utils.errorsystem.KException.KExceptionGroup;
 import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.FileUtil;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
 
 import com.google.inject.Inject;
 
@@ -81,6 +52,8 @@ public class DefinitionLoader {
     private final OuterParser outer;
     private final boolean documentation;
     private final boolean autoinclude;
+    private final FileUtil files;
+    private final Sdf2Table sdf2Table;
 
     @Inject
     public DefinitionLoader(
@@ -89,13 +62,17 @@ public class DefinitionLoader {
             KExceptionManager kem,
             OuterParser outer,
             @Backend.Documentation boolean documentation,
-            @Backend.Autoinclude boolean autoinclude) {
+            @Backend.Autoinclude boolean autoinclude,
+            FileUtil files,
+            Sdf2Table sdf2Table) {
         this.sw = sw;
         this.loader = loader;
         this.kem = kem;
         this.outer = outer;
         this.documentation = documentation;
         this.autoinclude = autoinclude;
+        this.files = files;
+        this.sdf2Table = sdf2Table;
     }
 
     public Definition loadDefinition(File mainFile, String lang, Context context) {
@@ -104,7 +81,7 @@ public class DefinitionLoader {
 
         String extension = FilenameUtils.getExtension(mainFile.getAbsolutePath());
         if ("bin".equals(extension)) {
-            javaDef = loader.loadOrDie(Definition.class, canoFile.toString());
+            javaDef = loader.loadOrDie(Definition.class, canoFile);
 
             sw.printIntermediate("Load definition from binary");
 
@@ -135,10 +112,10 @@ public class DefinitionLoader {
             // transfer information from the OuterParser object, to the Definition object
             org.kframework.kil.Definition def = new org.kframework.kil.Definition();
             try {
-                def.setMainFile(mainFile.getCanonicalPath());
+                def.setMainFile(mainFile.getCanonicalFile());
             } catch (IOException e) {
                 // this isn't worth crashing the application over, so just use the absolute path
-                def.setMainFile(mainFile.getAbsolutePath());
+                def.setMainFile(mainFile.getAbsoluteFile());
             }
             def.setMainModule(mainModule);
             def.setModulesMap(outer.getModulesMap());
@@ -155,7 +132,7 @@ public class DefinitionLoader {
 
                 if (!def.getModulesMap().containsKey(mainModule)) {
                     String msg = "Could not find main module '" + mainModule + "'. Use --main-module option to specify another.";
-                    kem.registerCompilerError(msg);
+                    throw KExceptionManager.compilerError(msg);
                 }
             }
             sw.printIntermediate("Outer Parsing");
@@ -170,42 +147,40 @@ public class DefinitionLoader {
 
             sw.printIntermediate("Preprocess");
 
-            new CheckVisitorStep<Definition>(new CheckSyntaxDecl(context), context).check(def);
+            new CheckVisitorStep<Definition>(new CheckSyntaxDecl(context, kem), context).check(def);
             new CheckVisitorStep<Definition>(new CheckListDecl(context), context).check(def);
             new CheckVisitorStep<Definition>(new CheckSortTopUniqueness(context), context).check(def);
 
             sw.printIntermediate("Checks");
 
             // ------------------------------------- generate files
-            ResourceExtractor.ExtractDefSDF(new File(context.dotk, "def"));
-            ResourceExtractor.ExtractGroundSDF(new File(context.dotk, "ground"));
+            DefinitionLocalKParser.init(files.resolveKompiled("."));
+            ResourceExtractor.ExtractDefSDF(files.resolveTemp("def"));
+            ResourceExtractor.ExtractGroundSDF(files.resolveTemp("ground"));
 
-            ResourceExtractor.ExtractProgramSDF(new File(context.dotk, "pgm"));
+            ResourceExtractor.ExtractProgramSDF(files.resolveTemp("pgm"));
             // ------------------------------------- generate parser TBL
             // cache the TBL if the sdf file is the same
             if (!documentation) {
                 String oldSdfPgm = "";
-                if (new File(context.kompiled, "Program.sdf").exists())
-                    oldSdfPgm = FileUtil.getFileContent(context.kompiled.getAbsolutePath() + "/Program.sdf");
+                if (files.resolveKompiled("Program.sdf").exists())
+                    oldSdfPgm = files.loadFromKompiled("Program.sdf");
 
-                StringBuilder newSdfPgmBuilder = ProgramSDF.getSdfForPrograms(def, context);
+                // save the new parser info
+                Grammar newParserGrammar = ProgramSDF.getNewParserForPrograms(def, context, kem);
+                loader.saveOrDie(files.resolveKompiled("newParser.bin"), newParserGrammar);
 
-                FileUtil.save(context.dotk.getAbsolutePath() + "/pgm/Program.sdf", newSdfPgmBuilder);
-                String newSdfPgm = FileUtil.getFileContent(context.dotk.getAbsolutePath() + "/pgm/Program.sdf");
+                StringBuilder newSdfPgmBuilder = ProgramSDF.getSdfForPrograms(def, context, kem);
+
+                String newSdfPgm = newSdfPgmBuilder.toString();
+                files.saveToTemp("pgm/Program.sdf", newSdfPgm);
 
                 sw.printIntermediate("File Gen Pgm");
 
-                if (!oldSdfPgm.equals(newSdfPgm) || !new File(context.kompiled, "Program.tbl").exists()) {
-                    Sdf2Table.run_sdf2table(new File(context.dotk.getAbsoluteFile() + "/pgm"), "Program");
-                    try {
-                        FileUtils.copyFileToDirectory(new File(context.dotk, "pgm/Program.sdf"), context.kompiled);
-                        FileUtils.copyFileToDirectory(new File(context.dotk, "pgm/Program.tbl"), context.kompiled);
-                    } catch (IOException e) {
-                        kem.registerInternalError(
-                                "IO error detected writing program parser to file", e);
-                        throw new AssertionError("unreachable");
-                    }
-
+                if (!oldSdfPgm.equals(newSdfPgm) || !files.resolveKompiled("Program.tbl").exists()) {
+                    sdf2Table.run_sdf2table(files.resolveTemp("pgm"), "Program");
+                    files.copyTempFileToKompiledDirectory("pgm/Program.sdf");
+                    files.copyTempFileToKompiledDirectory("pgm/Program.tbl");
                     sw.printIntermediate("Generate TBLPgm");
                 }
             }
@@ -218,48 +193,35 @@ public class DefinitionLoader {
             // ------------------------------------- generate parser TBL
             // cache the TBL if the sdf file is the same
             String oldSdf = "";
-            if (new File(context.kompiled, "Integration.sdf").exists())
-                oldSdf = FileUtil.getFileContent(context.kompiled.getAbsolutePath() + "/Integration.sdf");
-            FileUtil.save(context.dotk.getAbsolutePath() + "/def/Integration.sdf", DefinitionSDF.getSdfForDefinition(def, context));
-            FileUtil.save(context.dotk.getAbsolutePath() + "/ground/Integration.sdf", Definition2SDF.getSdfForDefinition(def, context));
-            String newSdf = FileUtil.getFileContent(context.dotk.getAbsolutePath() + "/def/Integration.sdf");
+            if (files.resolveKompiled("Integration.sdf").exists())
+                oldSdf = files.loadFromKompiled("Integration.sdf");
+            String newSdf = DefinitionSDF.getSdfForDefinition(def, context).toString();
+            files.saveToTemp("def/Integration.sdf", newSdf);;
+            files.saveToTemp("ground/Integration.sdf", Definition2SDF.getSdfForDefinition(def, context).toString());
 
             sw.printIntermediate("File Gen Def");
 
-            String cacheFile = context.kompiled.getAbsolutePath() + "/defx-cache.bin";
-            if (!oldSdf.equals(newSdf) || !new File(context.kompiled, "Rule.tbl").exists()
-                    || !new File(context.kompiled, "Ground.tbl").exists()) {
+            File cache = files.resolveKompiled("defx-cache.bin");
+            if (!oldSdf.equals(newSdf) || !files.resolveKompiled("Rule.tbl").exists()
+                    || !files.resolveKompiled("Ground.tbl").exists()) {
                 try {
                     // delete the file with the cached/partially parsed rules
-                    File cache = new File(cacheFile);
                     if (cache.exists() && !cache.delete()) {
-                        kem.registerCriticalError("Could not delete file " + cacheFile);
+                        throw KExceptionManager.criticalError("Could not delete file " + cache);
                     }
                     // Sdf2Table.run_sdf2table(new File(context.dotk.getAbsoluteFile() + "/def"), "Concrete");
-                    Thread t1 = Sdf2Table.run_sdf2table_parallel(new File(context.dotk.getAbsoluteFile() + "/def"), "Concrete");
+                    Thread t1 = sdf2Table.run_sdf2table_parallel(files.resolveTemp("def"), "Concrete");
                     if (!documentation) {
-                        Thread t2 = Sdf2Table.run_sdf2table_parallel(new File(context.dotk.getAbsoluteFile() + "/ground"), "Concrete");
+                        Thread t2 = sdf2Table.run_sdf2table_parallel(files.resolveTemp("ground"), "Concrete");
                         t2.join();
-                        try {
-                            FileUtils.copyFile(new File(context.dotk, "ground/Concrete.tbl"), new File(context.kompiled, "Ground.tbl"));
-                        } catch (IOException e) {
-                            kem.registerInternalError(
-                                    "IO error detected writing ground parser to file", e);
-                            throw new AssertionError("unreachable");
-                        }
+                        files.copyTempFileToKompiledFile("ground/Concrete.tbl", "Ground.tbl");
                     }
                     t1.join();
-                    try {
-                        FileUtils.copyFileToDirectory(new File(context.dotk, "def/Integration.sdf"), context.kompiled);
-                        FileUtils.copyFile(new File(context.dotk, "def/Concrete.tbl"), new File(context.kompiled, "Rule.tbl"));
-                    } catch (IOException e) {
-                        kem.registerInternalError(
-                                "IO error detected writing rule parser to file", e);
-                        throw new AssertionError("unreachable");
-                    }
+                    files.copyTempFileToKompiledDirectory("def/Integration.sdf");
+                    files.copyTempFileToKompiledFile("def/Concrete.tbl", "Rule.tbl");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    kem.registerCriticalError(
+                    throw KExceptionManager.criticalError(
                             "Thread was interrupted trying to run SDF2Table");
                 }
 
@@ -267,13 +229,8 @@ public class DefinitionLoader {
                 sw.printIntermediate("Generate TBLDef");
             }
 
-            org.kframework.parser.concrete.KParser.ImportTblRule(context.kompiled);
-
-            sw.printIntermediate("Importing Files");
             // ------------------------------------- parse configs
-            JavaClassesFactory.startConstruction(context);
-            def = (Definition) new ParseConfigsFilter(context).visitNode(def);
-            JavaClassesFactory.endConstruction();
+            def = (Definition) new ParseConfigsFilter(context, kem).visitNode(def);
             new CollectConfigCellsVisitor(context).visitNode(def);
 
             // sort List in streaming cells
@@ -282,12 +239,11 @@ public class DefinitionLoader {
             sw.printIntermediate("Parsing Configs");
 
             // ----------------------------------- parse rules
-            JavaClassesFactory.startConstruction(context);
             Map<String, CachedSentence> cachedDef;
             // load definition if possible
             try {
                 @SuppressWarnings("unchecked")
-                Map<String, CachedSentence> cachedDefTemp = loader.load(Map.class, cacheFile);
+                Map<String, CachedSentence> cachedDefTemp = loader.load(Map.class, cache);
                 cachedDef = cachedDefTemp;
             } catch (IOException | ClassNotFoundException e) {
                 // it means the cache is not valid, or it doesn't exist
@@ -306,19 +262,18 @@ public class DefinitionLoader {
                 te.printStackTrace();
             } finally {
                 // save definition
-                loader.saveOrDie(cacheFile, clf.getKept());
+                loader.saveOrDie(cache, clf.getKept());
             }
-            JavaClassesFactory.endConstruction();
 
             // really important to do disambiguation after we save the cache to disk because
             // the objects in the sentences are mutable, and we risk altering them and miss
             // warning and error messages when kompiling next time around
             try {
-                def = (Definition) new DisambiguateRulesFilter(context, true).visitNode(def);
+                def = (Definition) new DisambiguateRulesFilter(context, true, kem).visitNode(def);
             } catch (ParseFailedException te) {
                 te.printStackTrace();
             }
-            def = (Definition) new NormalizeASTTransformer(context).visitNode(def);
+            def = (Definition) new NormalizeASTTransformer(context, kem).visitNode(def);
 
             sw.printIntermediate("Parsing Rules [" + (clf.getKept().size() - cachedSentences) + "/" + clf.getKept().size() + "]");
 
@@ -326,181 +281,5 @@ public class DefinitionLoader {
         } catch (ParseFailedException e) {
             throw new AssertionError("should not throw TransformerException", e);
         }
-    }
-
-    /**
-     * Parses a string representing a file with modules in it. Returns the complete parse tree. Any bubble rule has been parsed and disambiguated.
-     *
-     * @param content
-     *            - the input string.
-     * @param source
-     *            - only for error reporting purposes. Can be empty string.
-     * @param context
-     *            - the context for disambiguation purposes.
-     * @return A lightweight Definition element which contain all the definition items found in the string.
-     */
-    public static Definition parseString(String content, Source source, Context context) throws ParseFailedException {
-        List<DefinitionItem> di = Outer.parse(source, content, context);
-
-        org.kframework.kil.Definition def = new org.kframework.kil.Definition();
-        def.setItems(di);
-
-        // ------------------------------------- import files in Stratego
-        org.kframework.parser.concrete.KParser.ImportTblRule(context.kompiled);
-
-        // ------------------------------------- parse configs
-        JavaClassesFactory.startConstruction(context);
-        def = (Definition) new ParseConfigsFilter(context, false).visitNode(def);
-        JavaClassesFactory.endConstruction();
-
-        // ----------------------------------- parse rules
-        JavaClassesFactory.startConstruction(context);
-        def = (Definition) new ParseRulesFilter(context).visitNode(def);
-        def = (Definition) new DisambiguateRulesFilter(context, false).visitNode(def);
-        def = (Definition) new NormalizeASTTransformer(context).visitNode(def);
-
-        JavaClassesFactory.endConstruction();
-
-        return def;
-    }
-
-    public static Term parseCmdString(String content, Source source, Sort startSymbol, Context context) throws ParseFailedException {
-        if (!context.initialized) {
-            assert false : "You need to load the definition before you call parsePattern!";
-        }
-        String parsed = org.kframework.parser.concrete.KParser.ParseKCmdString(content);
-        Document doc = XmlLoader.getXMLDoc(parsed);
-        XmlLoader.addSource(doc.getFirstChild(), source);
-        XmlLoader.reportErrors(doc);
-
-        JavaClassesFactory.startConstruction(context);
-        org.kframework.kil.ASTNode config = JavaClassesFactory.getTerm((Element) doc.getFirstChild().getFirstChild().getNextSibling());
-        JavaClassesFactory.endConstruction();
-
-        // TODO: reject rewrites
-        config = new SentenceVariablesFilter(context).visitNode(config);
-        config = new CellEndLabelFilter(context).visitNode(config);
-        //if (checkInclusion)
-        //    config = new InclusionFilter(localModule, context).visitNode(config);
-        config = new TypeSystemFilter2(startSymbol, context).visitNode(config);
-        config = new CellTypesFilter(context).visitNode(config);
-        config = new CorrectRewritePriorityFilter(context).visitNode(config);
-        config = new CorrectKSeqFilter(context).visitNode(config);
-        config = new CorrectCastPriorityFilter(context).visitNode(config);
-        // config = new CheckBinaryPrecedenceFilter().visitNode(config);
-        config = new PriorityFilter(context).visitNode(config);
-        config = new PreferDotsFilter(context).visitNode(config);
-        config = new VariableTypeInferenceFilter(context).visitNode(config);
-        try {
-            config = new TypeSystemFilter(context).visitNode(config);
-            config = new TypeInferenceSupremumFilter(context).visitNode(config);
-        } catch (ParseFailedException e) {
-            e.report();
-        }
-        // config = new AmbDuplicateFilter(context).visitNode(config);
-        // config = new TypeSystemFilter(context).visitNode(config);
-        // config = new BestFitFilter(new GetFitnessUnitTypeCheckVisitor(context), context).visitNode(config);
-        // config = new TypeInferenceSupremumFilter(context).visitNode(config);
-        config = new BestFitFilter(new GetFitnessUnitKCheckVisitor(context), context).visitNode(config);
-        config = new PreferAvoidFilter(context).visitNode(config);
-        config = new NormalizeASTTransformer(context).visitNode(config);
-        config = new FlattenListsFilter(context).visitNode(config);
-        config = new AmbDuplicateFilter(context).visitNode(config);
-        // last resort disambiguation
-        config = new AmbFilter(context).visitNode(config);
-
-        return (Term) config;
-    }
-
-    public static ASTNode parsePattern(String pattern, Source source, Sort startSymbol, Context context) throws ParseFailedException {
-        if (!context.initialized) {
-            assert false : "You need to load the definition before you call parsePattern!";
-        }
-
-        String parsed = org.kframework.parser.concrete.KParser.ParseKRuleString(pattern);
-        Document doc = XmlLoader.getXMLDoc(parsed);
-
-        XmlLoader.addSource(doc.getFirstChild(), source);
-        XmlLoader.reportErrors(doc);
-
-        JavaClassesFactory.startConstruction(context);
-        ASTNode config = JavaClassesFactory.getTerm((Element) doc.getDocumentElement().getFirstChild().getNextSibling());
-        JavaClassesFactory.endConstruction();
-
-        // TODO: reject rewrites
-        config = new SentenceVariablesFilter(context).visitNode(config);
-        config = new CellEndLabelFilter(context).visitNode(config);
-        //if (checkInclusion)
-        //    config = new InclusionFilter(localModule, context).visitNode(config);
-        config = new TypeSystemFilter2(startSymbol, context).visitNode(config);
-        config = new CellTypesFilter(context).visitNode(config);
-        config = new CorrectRewritePriorityFilter(context).visitNode(config);
-        config = new CorrectKSeqFilter(context).visitNode(config);
-        config = new CorrectCastPriorityFilter(context).visitNode(config);
-        // config = new CheckBinaryPrecedenceFilter().visitNode(config);
-        config = new PriorityFilter(context).visitNode(config);
-        config = new PreferDotsFilter(context).visitNode(config);
-        config = new VariableTypeInferenceFilter(context).visitNode(config);
-        try {
-            config = new TypeSystemFilter(context).visitNode(config);
-            config = new TypeInferenceSupremumFilter(context).visitNode(config);
-        } catch (ParseFailedException e) {
-            e.report();
-        }
-        // config = new AmbDuplicateFilter(context).visitNode(config);
-        // config = new TypeSystemFilter(context).visitNode(config);
-        // config = new BestFitFilter(new GetFitnessUnitTypeCheckVisitor(context), context).visitNode(config);
-        // config = new TypeInferenceSupremumFilter(context).visitNode(config);
-        config = new BestFitFilter(new GetFitnessUnitKCheckVisitor(context), context).visitNode(config);
-        config = new PreferAvoidFilter(context).visitNode(config);
-        config = new NormalizeASTTransformer(context).visitNode(config);
-        config = new FlattenListsFilter(context).visitNode(config);
-        config = new AmbDuplicateFilter(context).visitNode(config);
-        // last resort disambiguation
-        config = new AmbFilter(context).visitNode(config);
-
-        return config;
-    }
-
-    public static ASTNode parsePatternAmbiguous(String pattern, Context context) throws ParseFailedException {
-        if (!context.initialized) {
-            assert false : "You need to load the definition before you call parsePattern!";
-        }
-
-        String parsed = org.kframework.parser.concrete.KParser.ParseKRuleString(pattern);
-        Document doc = XmlLoader.getXMLDoc(parsed);
-
-        // XmlLoader.addFilename(doc.getFirstChild(), filename);
-        XmlLoader.reportErrors(doc);
-
-        JavaClassesFactory.startConstruction(context);
-        ASTNode config = JavaClassesFactory.getTerm((Element) doc.getDocumentElement().getFirstChild().getNextSibling());
-        JavaClassesFactory.endConstruction();
-
-        // TODO: don't allow rewrites
-        config = new SentenceVariablesFilter(context).visitNode(config);
-        config = new CellEndLabelFilter(context).visitNode(config);
-        config = new CellTypesFilter(context).visitNode(config);
-        // config = new CorrectRewritePriorityFilter().visitNode(config);
-        config = new CorrectKSeqFilter(context).visitNode(config);
-        config = new CorrectCastPriorityFilter(context).visitNode(config);
-        // config = new CheckBinaryPrecedenceFilter().visitNode(config);
-        // config = new InclusionFilter(localModule).visitNode(config);
-        // config = new VariableTypeInferenceFilter().visitNode(config);
-        config = new AmbDuplicateFilter(context).visitNode(config);
-        config = new TypeSystemFilter(context).visitNode(config);
-        config = new PreferDotsFilter(context).visitNode(config);
-        config = new VariableTypeInferenceFilter(context).visitNode(config);
-        // config = new PriorityFilter().visitNode(config);
-        config = new BestFitFilter(new GetFitnessUnitTypeCheckVisitor(context), context).visitNode(config);
-        config = new TypeInferenceSupremumFilter(context).visitNode(config);
-        config = new BestFitFilter(new GetFitnessUnitKCheckVisitor(context), context).visitNode(config);
-        // config = new PreferAvoidFilter().visitNode(config);
-        config = new NormalizeASTTransformer(context).visitNode(config);
-        config = new FlattenListsFilter(context).visitNode(config);
-        config = new AmbDuplicateFilter(context).visitNode(config);
-        // last resort disambiguation
-        // config = new AmbFilter().visitNode(config);
-        return config;
     }
 }

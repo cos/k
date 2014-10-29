@@ -6,6 +6,7 @@ import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.kil.Variable;
 import org.kframework.backend.java.symbolic.SymbolicConstraint;
+import org.kframework.backend.java.symbolic.TruthValue;
 
 
 /**
@@ -48,14 +49,13 @@ public class TermEquality {
      * {@link org.kframework.backend.java.symbolic.SymbolicConstraint} with one equality and
      * simplifying it.
      */
-    private static SymbolicConstraint.TruthValue getEqualityTruthValue(
+    private static TruthValue getEqualityTruthValue(
             Term term1,
             Term term2,
             TermContext context) {
         SymbolicConstraint constraint = new SymbolicConstraint(context);
         constraint.add(term1, term2);
-        constraint.simplify();
-        return constraint.getTruthValue();
+        return constraint.simplify();
     }
 
     private static boolean hasKLabelVariables(Term term) {

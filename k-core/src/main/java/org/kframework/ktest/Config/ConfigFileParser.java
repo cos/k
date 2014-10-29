@@ -9,7 +9,8 @@ import org.kframework.ktest.PgmArg;
 import org.kframework.ktest.Test.ProgramProfile;
 import org.kframework.ktest.Test.TestCase;
 import org.kframework.utils.OS;
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.FileUtil;
 import org.w3c.dom.*;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -28,6 +29,7 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -36,10 +38,16 @@ public class ConfigFileParser {
 
     private final Document doc;
     private final KTestOptions cmdArgs;
+    private final Map<String, String> env;
+    private final KExceptionManager kem;
+    private final FileUtil files;
 
-    public ConfigFileParser(File configFile, KTestOptions cmdArgs) throws IOException, SAXException,
+    public ConfigFileParser(File configFile, KTestOptions cmdArgs, Map<String, String> env, KExceptionManager kem, FileUtil files) throws IOException, SAXException,
             ParserConfigurationException, TransformerException {
         this.cmdArgs = cmdArgs;
+        this.env = env;
+        this.kem = kem;
+        this.files = files;
 
         // validate xml file structure
         Source schemaFile = new StreamSource(getClass().getResourceAsStream("ktest.xsd"));
@@ -51,9 +59,9 @@ public class ConfigFileParser {
             validator.validate(xmlFile);
         } catch (SAXException e) {
             // unfortunately validator doesn't provide error locations so all we can say is this
-            GlobalSettings.kem.registerCriticalError(
+            throw KExceptionManager.criticalError(
                     "Invalid config file formatting. Refer to the K manual for details. "
-                            + e.getMessage());
+                            + e.getMessage(), e);
         }
 
         // parse xml file
@@ -75,7 +83,7 @@ public class ConfigFileParser {
 
         // Create our filter to wrap the SAX parser, that captures the locations of elements
         // and annotates their nodes as they are inserted into the DOM.
-        ConfigPreProcessor locationAnnotator = new ConfigPreProcessor(xmlReader, doc);
+        ConfigPreProcessor locationAnnotator = new ConfigPreProcessor(xmlReader, doc, env, files);
 
         // Create the SAXSource to use the annotator.
         String systemId = configFile.getAbsolutePath();
@@ -145,7 +153,7 @@ public class ConfigFileParser {
                 (LocationData) includeNode.getUserData(LocationData.LOCATION_DATA_KEY);
 
         String fileValue = includeAttrs.getNamedItem("file").getNodeValue();
-        String file = concat(FilenameUtils.getFullPath(cmdArgs.getTargetFile()),fileValue);
+        String file = concat(files.resolveWorkingDirectory(cmdArgs.getTargetFile()).getParentFile().getAbsolutePath(),fileValue);
 
         if (!new File(file).isFile())
             throw new InvalidConfigError(
@@ -168,7 +176,7 @@ public class ConfigFileParser {
 
         ConfigFileParser configFileParser;
         try {
-            configFileParser = new ConfigFileParser(new File(file), cmdArgs1);
+            configFileParser = new ConfigFileParser(new File(file), cmdArgs1, env, kem, files);
         } catch (TransformerException | IOException | SAXException | ParserConfigurationException e) {
             // I'm not happy with that part ...
             throw new InvalidConfigError("error occured while parsing included file " + file +
@@ -289,7 +297,7 @@ public class ConfigFileParser {
         Map<String, ProgramProfile> pgmSpecificKRunOpts = parsePgmSpecificKRunOpts(childNodes);
 
         TestCase ret = new TestCase(definition, programs, extensions, excludes, results,
-                kompileOpts, krunOpts, pgmSpecificKRunOpts, skips);
+                kompileOpts, krunOpts, pgmSpecificKRunOpts, skips, cmdArgs, kem, files, env);
         if (posixOnly != null) {
             ret.setPosixInitScript(posixOnly);
         }

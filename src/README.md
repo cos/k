@@ -3,9 +3,8 @@ This is a readme file for the developers.
 
 # Prerequisites
 
-## Java Development Kit (required JDK7 or higher)
-You can follow the instructions here: 
-http://docs.oracle.com/javase/7/docs/webnotes/install/index.html depending on 
+## Java Development Kit (required JDK8 or higher)
+You can follow the instructions [http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html](here) depending on
 the type of your machine.
 
 To make sure that everything works you should be able to call `java -version` and
@@ -32,13 +31,6 @@ option to make git accessible in the command line too.
 
 You can test if it works by calling `mvn -version` in a Terminal.
 
-## (On Windows only) Visual C++ 2012 Redistributable Package
-This is a dependency of the Z3 JNI library. You can download it here: 
-http://www.microsoft.com/en-us/download/details.aspx?id=30679
-
-Make sure to download the 64-bit version if you are using a 64-bit JRE,
-and the 32-bit version if you are using a 32-bit JRE.
-
 # Install
 Checkout this directory in your desired location and call `mvn package` from the main
 directory to build the distribution. For convenient usage, you can update
@@ -48,6 +40,38 @@ You are also encouraged to set the environment variable `MAVEN_OPTS` to `-XX:+Ti
 which will significantly speed up the incremental build process.
 
 # IDE Setup
+
+## General
+
+You should run K from the k-distribution project, because it is the only project to have the complete
+classpath and therefore all backends.
+
+## Environment
+
+In order for K to run correctly in an IDE, it is necessary that the correct environment variables be set.
+
+### Mac OS X
+
+`PATH=$PATH:<release>/lib/native/osx
+DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:<release>/lib/native/osx`
+
+### Windows x86
+
+`PATH=$PATH;<release>\lib\native\windows;<release>\lib\native\windows32;<release>\lib\native\32`
+
+### Windows x64
+
+`PATH=$PATH;<release>\lib\native\windows;<release>\lib\native\windows64;<release>\lib\native\64`
+
+### Linux i386
+
+`PATH=$PATH:<release>/lib/native/linux:<release>/lib/native/linux32
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<release>/lib/native/linux32`
+
+### Linux amd64
+
+`PATH=$PATH:<release>/lib/native/linux:<release>/lib/native/linux64
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:<release>/lib/native/linux64`
 
 ## Eclipse
 To autogenerate an Eclipse project for K, run `mvn install -DskipKTest; mvn eclipse:eclipse` on the
@@ -107,6 +131,10 @@ Common error messages:
    + You may run into this issue if target/generated-sources/javacc is not added to the
      build path of your IDE. Generally this is solved by regenerating your project /
      re-syncing it with the pom.xml.
+
+- `[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.1:compile
+   (default-compile) on project k-core: Fatal error compiling: invalid target release: 1.8 -> [Help 1]`
+   + You either do not have Java 8 installed, or `$JAVA_HOME` does not point to a Java 8 JDK.
 
 If something unexpected happens and the project fails to build, try `mvn clean` and
 rebuild the entire project. Generally speaking, however, the project should build incrementally

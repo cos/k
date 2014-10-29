@@ -16,8 +16,7 @@ import org.kframework.kil.Term;
 import org.kframework.kil.Variable;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.CopyOnWriteTransformer;
-import org.kframework.utils.general.GlobalSettings;
-
+import org.kframework.utils.errorsystem.KExceptionManager;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -55,15 +54,15 @@ public class AddSemanticEquality extends CopyOnWriteTransformer {
                         if (!equalities.containsKey(prod.getChildSort(0)))
                             equalities.put(prod.getChildSort(0), prod.getKLabel());
                         else
-                            GlobalSettings.kem.registerCriticalError(
+                            throw KExceptionManager.criticalError(
                                     "redeclaration of equality for sort " + prod.getChildSort(0),
                                     this, prod);
                     else
-                        GlobalSettings.kem.registerCriticalError(
+                        throw KExceptionManager.criticalError(
                                 "arguments for equality expected to be of the same sort",
                                 this, prod);
                 else
-                    GlobalSettings.kem.registerCriticalError(
+                    throw KExceptionManager.criticalError(
                             "unexpected number of arguments for equality, expected 2",
                             this, prod);
             /* TOOD(AndreiS): cink fails this check; either fix cink or remove the check
@@ -82,13 +81,13 @@ public class AddSemanticEquality extends CopyOnWriteTransformer {
         /* defer =K to =Sort for sorts with equality */
         for(Map.Entry<Sort, String> item : equalities.entrySet()) {
             Sort sort = item.getKey();
-            KLabelConstant sortEq = KLabelConstant.of(item.getValue(), context);
+            KLabelConstant sortEq = KLabelConstant.of(item.getValue());
             if (sort.isComputationSort()) {
                 retNode.addSubsort(EQUALITY_SORT, sort, context);
 
                 KList kList = new KList();
-                kList.add(Variable.getFreshVar(sort));
-                kList.add(Variable.getFreshVar(sort));
+                kList.add(Variable.getAnonVar(sort));
+                kList.add(Variable.getAnonVar(sort));
 
                 Term lhs = new KApp(KLabelConstant.KEQ, kList);
                 Term rhs = new KApp(sortEq, kList);
@@ -105,12 +104,12 @@ public class AddSemanticEquality extends CopyOnWriteTransformer {
                     && !prod.containsAttribute(Attribute.FUNCTION.getKey())
                     && !prod.containsAttribute(Attribute.PREDICATE.getKey())
                     && (!prod.getSort().isKSort() || prod.getSort().equals(Sort.K))) {
-                Variable KListVar1 = Variable.getFreshVar(Sort.KLIST);
-                Variable KListVar2 = Variable.getFreshVar(Sort.KLIST);
+                Variable KListVar1 = Variable.getAnonVar(Sort.KLIST);
+                Variable KListVar2 = Variable.getAnonVar(Sort.KLIST);
 
                 KList lhsList = new KList();
-                lhsList.add(new KApp(KLabelConstant.of(prod.getKLabel(), context), KListVar1));
-                lhsList.add(new KApp(KLabelConstant.of(prod.getKLabel(), context), KListVar2));
+                lhsList.add(new KApp(KLabelConstant.of(prod.getKLabel()), KListVar1));
+                lhsList.add(new KApp(KLabelConstant.of(prod.getKLabel()), KListVar2));
 
                 KList rhsList = new KList();
                 rhsList.add(KApp.of(new KInjectedLabel(KListVar1)));
@@ -127,8 +126,8 @@ public class AddSemanticEquality extends CopyOnWriteTransformer {
         /* defer =K to ==K for lexical tokens */
         for (Sort sort : context.getTokenSorts()) {
             KList kList = new KList();
-            kList.add(Variable.getFreshVar(sort));
-            kList.add(Variable.getFreshVar(sort));
+            kList.add(Variable.getAnonVar(sort));
+            kList.add(Variable.getAnonVar(sort));
 
             Term lhs = new KApp(KLabelConstant.KEQ, kList);
             Term rhs = new KApp(KLabelConstant.KEQ_KLABEL, kList);

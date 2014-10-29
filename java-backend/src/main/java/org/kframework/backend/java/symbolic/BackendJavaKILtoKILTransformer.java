@@ -125,7 +125,7 @@ public class BackendJavaKILtoKILTransformer implements Transformer {
 
     @Override
     public ASTNode transform(KLabelConstant kLabelConstant) {
-        ASTNode kil = org.kframework.kil.KLabelConstant.of(kLabelConstant.label(), context);
+        ASTNode kil = org.kframework.kil.KLabelConstant.of(kLabelConstant.label());
         kil.copyAttributesFrom(kLabelConstant);
         return kil;
     }
@@ -252,12 +252,6 @@ public class BackendJavaKILtoKILTransformer implements Transformer {
 //        System.out.println("**********VARIABLE"+ variable.name()+"->"+variable.sort());
         node.copyAttributesFrom(variable);
         return node;
-    }
-
-    @Override
-    public ASTNode transform(BuiltinMgu mgu) {
-        // TODO(YilongL): properly translate the Mgu into KItem form using the toK function
-        return transformJavaBackendSpecificTerm(mgu);
     }
 
     @Override

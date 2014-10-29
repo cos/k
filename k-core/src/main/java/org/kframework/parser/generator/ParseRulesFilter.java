@@ -1,6 +1,7 @@
 // Copyright (c) 2012-2014 K Team. All Rights Reserved.
 package org.kframework.parser.generator;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Formatter;
@@ -18,12 +19,13 @@ import org.kframework.kil.loader.Constants;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.loader.JavaClassesFactory;
 import org.kframework.kil.visitors.ParseForestTransformer;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
+import org.kframework.utils.errorsystem.ParseFailedException;
 import org.kframework.parser.utils.CachedSentence;
 import org.kframework.utils.XmlLoader;
 import org.kframework.utils.errorsystem.KException;
 import org.kframework.utils.errorsystem.KException.ExceptionType;
 import org.kframework.utils.errorsystem.KException.KExceptionGroup;
+import org.kframework.utils.errorsystem.KExceptionManager;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -61,11 +63,17 @@ public class ParseRulesFilter extends ParseForestTransformer {
             if (ss.containsAttribute("kore")) {
 
                 long koreStartTime = System.currentTimeMillis();
-                parsed = org.kframework.parser.concrete.KParser.ParseKoreString(ss.getContent());
-                if (globalOptions.verbose)
+                parsed = org.kframework.parser.concrete.DefinitionLocalKParser.ParseKoreString(ss.getContent(), context.files.resolveKompiled("."));
+                if (context.globalOptions.verbose)
                     System.out.println("Parsing with Kore: " + ss.getSource() + ":" + ss.getLocation() + " - " + (System.currentTimeMillis() - koreStartTime));
-            } else
-                parsed = org.kframework.parser.concrete.KParser.ParseKConfigString(ss.getContent());
+            } else {
+                try {
+                    parsed = org.kframework.parser.concrete.DefinitionLocalKParser.ParseKConfigString(ss.getContent(), context.files.resolveKompiled("."));
+                } catch (RuntimeException  e) {
+                    String msg = "SDF failed to parse a rule by throwing: " + e.getCause().getLocalizedMessage();
+                    throw new ParseFailedException(new KException(ExceptionType.ERROR, KExceptionGroup.CRITICAL, msg, ss.getSource(), ss.getLocation()));
+                }
+            }
             Document doc = XmlLoader.getXMLDoc(parsed);
 
             // replace the old xml node with the newly parsed sentence
@@ -74,7 +82,7 @@ public class ParseRulesFilter extends ParseForestTransformer {
             XmlLoader.addSource(xmlTerm, ss.getSource());
             XmlLoader.reportErrors(doc, ss.getType());
 
-            Sentence st = (Sentence) JavaClassesFactory.getTerm((Element) xmlTerm);
+            Sentence st = (Sentence) new JavaClassesFactory(context).getTerm((Element) xmlTerm);
             assert st.getLabel().equals(""); // labels should have been parsed in Outer Parsing
             st.setLabel(ss.getLabel());
             st.setAttributes(ss.getAttributes());
@@ -99,8 +107,12 @@ public class ParseRulesFilter extends ParseForestTransformer {
             }
             cachedDef.put(key, new CachedSentence(sentence, startLine, startColumn));
 
-            if (globalOptions.debug) {
-                try (Formatter f = new Formatter(new FileWriter(context.dotk.getAbsolutePath() + "/timing.log", true))) {
+            if (context.globalOptions.debug) {
+                File file = context.files.resolveTemp("timing.log");
+                if (!file.getParentFile().exists() && !file.getParentFile().mkdirs()) {
+                    throw KExceptionManager.criticalError("Could not create directory " + file.getParentFile());
+                }
+                try (Formatter f = new Formatter(new FileWriter(file, true))) {
                     f.format("Parsing rule: Time: %6d Location: %s:%s%n", (System.currentTimeMillis() - startTime), ss.getSource(), ss.getLocation());
                 } catch (IOException e) {
                     e.printStackTrace();

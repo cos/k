@@ -2,8 +2,6 @@
 
 package org.kframework.backend.unparser;
 
-import java.util.Map;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.kframework.kil.KApp;
@@ -21,7 +19,6 @@ public class UnparserFilterNewTest {
     @Before
     public void setup() {
         context = Mockito.mock(Context.class);
-        context.canonicalBracketForSort = Mockito.mock(Map.class);
         context.krunOptions = new KRunOptions();
     }
 
@@ -30,8 +27,8 @@ public class UnparserFilterNewTest {
      */
     @Test
     public void testTrailingUnderscores() {
-        UnparserFilterNew v = new UnparserFilterNew(context);
-        KApp t = KApp.of(KLabelConstant.of("'__", context), Variable.getFreshVar(Sort.K), Variable.getFreshVar(Sort.K));
+        UnparserFilter v = new UnparserFilter(context);
+        KApp t = KApp.of(KLabelConstant.of("'__"), Variable.getAnonVar(Sort.K), Variable.getAnonVar(Sort.K));
         v.visit(t, null);
         v.getResult();
     }

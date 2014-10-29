@@ -22,7 +22,7 @@ public class Variable extends Term {
     private boolean syntactic = false;
     /** Used by the type inferencer  */
     private Sort expectedSort = null;
-    private static final String GENERATED_FRESH_VAR = "GeneratedFreshVar";
+    public static final String GENERATED_ANON_VAR = "GeneratedAnonVar";
 
     public Sort getExpectedSort() {
         return expectedSort;
@@ -32,7 +32,7 @@ public class Variable extends Term {
         this.expectedSort = expectedSort;
     }
 
-    public Variable(Element element) {
+    public Variable(Element element, JavaClassesFactory factory) {
         super(element);
         this.sort = Sort.of(element.getAttribute(Constants.SORT_sort_ATTR));
         this.name = element.getAttribute(Constants.NAME_name_ATTR);
@@ -40,7 +40,7 @@ public class Variable extends Term {
 
         java.util.List<Element> its = XML.getChildrenElementsByTagName(element, Constants.ATTRIBUTES);
         if (its.size() > 0) {
-            getAttributes().putAll((Attributes) JavaClassesFactory.getTerm(its.get(0)));
+            getAttributes().putAll((Attributes) factory.getTerm(its.get(0)));
         }
 
         if (this.name.startsWith("?")) {
@@ -78,8 +78,12 @@ public class Variable extends Term {
         expectedSort = variable.expectedSort;
     }
 
-    public static Variable getFreshVar(Sort sort) {
-        return new Variable(GENERATED_FRESH_VAR + nextVariableIndex++, sort);
+    public static Variable getAnonVar(Sort sort) {
+        return new Variable(GENERATED_ANON_VAR + nextVariableIndex++, sort);
+    }
+
+    public static Variable getAnonVar(Sort sort, boolean freshVariable, boolean freshConstant) {
+        return new Variable(GENERATED_ANON_VAR + nextVariableIndex++, sort, freshVariable, freshConstant);
     }
 
     public void setName(String name) {
@@ -151,7 +155,7 @@ public class Variable extends Term {
     }
 
     public boolean isGenerated(){
-        return name.startsWith(GENERATED_FRESH_VAR);
+        return name.startsWith(GENERATED_ANON_VAR);
     }
 
     public boolean isSyntactic() {

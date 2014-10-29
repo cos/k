@@ -1,18 +1,21 @@
 // Copyright (c) 2013-2014 K Team. All Rights Reserved.
-
 package org.kframework.backend.java.kil;
 
-import java.util.List;
-
-import org.apache.commons.collections4.ListUtils;
 import org.kframework.backend.java.symbolic.Matcher;
 import org.kframework.backend.java.symbolic.Transformer;
 import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.backend.java.util.Utils;
 import org.kframework.kil.ASTNode;
+import org.kframework.kil.DataStructureSort;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
-import com.google.common.base.Function;
+import org.apache.commons.collections4.ListUtils;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -36,6 +39,7 @@ public class BuiltinList extends Collection {
     private final ImmutableList<Term> elementsRight;
     private final ImmutableList<Term> baseTerms;
     private final ImmutableList<BaseTermType> baseTermTypes;
+    private final ImmutableList<Variable> listVariables;
 
     /**
      * Private efficient constructor used by {@link BuiltinList.Builder}.
@@ -44,13 +48,15 @@ public class BuiltinList extends Collection {
             ImmutableList<Term> elementsLeft,
             ImmutableList<Term> baseTerms,
             ImmutableList<Term> elementsRight,
-            ImmutableList<BaseTermType> baseTermTypes
+            ImmutableList<BaseTermType> baseTermTypes,
+            ImmutableList<Variable> listVariables
             ) {
         super(computeFrame(baseTerms), Kind.KITEM);
         this.elementsLeft = elementsLeft;
         this.elementsRight = elementsRight;
         this.baseTerms = baseTerms;
         this.baseTermTypes = baseTermTypes;
+        this.listVariables = listVariables;
     }
 
     private static Variable computeFrame(List<Term> baseTerms) {
@@ -62,7 +68,7 @@ public class BuiltinList extends Collection {
     }
 
     private BuiltinList(ImmutableList<Term> elementsLeft) {
-        this(elementsLeft, ImmutableList.<Term>of(), ImmutableList.<Term>of(), ImmutableList.<BaseTermType>of());
+        this(elementsLeft, ImmutableList.<Term>of(), ImmutableList.<Term>of(), ImmutableList.<BaseTermType>of(), ImmutableList.<Variable>of());
     }
 
     public static Term concatenate(Term... lists) {
@@ -98,11 +104,23 @@ public class BuiltinList extends Collection {
         return BaseTerm.of(baseTerms.get(index), baseTermTypes.get(index));
     }
 
+    @Override
+    public ImmutableList<Variable> collectionVariables() {
+        return listVariables;
+    }
+
     /**
      * TODO(YilongL): implement it properly!
      */
     public boolean isUnifiableByCurrentAlgorithm() {
         return true;
+    }
+
+    public static boolean isListUnifiableByCurrentAlgorithm(Term term, Term otherTerm) {
+        return term instanceof BuiltinList
+                && ((BuiltinList) term).isUnifiableByCurrentAlgorithm()
+                && otherTerm instanceof BuiltinList
+                && ((BuiltinList) term).isUnifiableByCurrentAlgorithm();
     }
 
     @Override
@@ -204,26 +222,40 @@ public class BuiltinList extends Collection {
         return toString(" ", ".List");
     }
 
-    /**
-     * TODO(YilongL): use Java8 functional features instead
-     * @deprecated
-     */
-    private static final Function<Term, String> ELEMENT_TO_STRING_FUNCTION = new Function<Term, String>() {
-        @Override
-        public String apply(Term term) {
-            return "ListItem(" + term + ")";
-        }
-    };
-
     public String toString(String operator, String identity) {
         if (!isEmpty()) {
             return Joiner.on(operator).join(
-                    Joiner.on(operator).join(Lists.transform(elementsLeft, ELEMENT_TO_STRING_FUNCTION)),
+                    Joiner.on(operator).join(elementsLeft.stream().map(e -> "ListItem(" + e + ")").collect(Collectors.toList())),
                     Joiner.on(operator).join(baseTerms),
-                    Joiner.on(operator).join(Lists.transform(elementsRight, ELEMENT_TO_STRING_FUNCTION)));
+                    Joiner.on(operator).join(elementsRight.stream().map(e -> "ListItem(" + e + ")").collect(Collectors.toList())));
         } else {
             return identity;
         }
+    }
+
+    @Override
+    protected List<Term> getKComponents(TermContext context) {
+        DataStructureSort sort = context.definition().context().dataStructureSortOf(
+                sort().toFrontEnd());
+
+        ArrayList<Term> components = Lists.newArrayList();
+        Consumer<Term> addElementToComponents = element ->
+                components.add(KItem.of(
+                        KLabelConstant.of(sort.elementLabel(), context.definition().context()),
+                        KList.singleton(element),
+                        context));
+
+        elementsLeft.stream().forEach(addElementToComponents);
+        for (Term term : baseTerms) {
+            if (term instanceof BuiltinList) {
+                components.addAll(((BuiltinList) term).getKComponents(context));
+            } else {
+                components.add(term);
+            }
+        }
+        elementsRight.stream().forEach(addElementToComponents);
+
+        return components;
     }
 
     public static Builder builder() {
@@ -262,6 +294,26 @@ public class BuiltinList extends Collection {
         public boolean isList() {
             return type == BaseTermType.LIST;
         }
+
+        public boolean equals(Object object) {
+            if (this == object) {
+                return true;
+            }
+
+            if (!(object instanceof BaseTerm)) {
+                return false;
+            }
+
+            BaseTerm baseTerm = (BaseTerm) object;
+            return term.equals(baseTerm.term) && type.equals(baseTerm.type);
+        }
+
+        public int hashCode() {
+            int hashCode = 1;
+            hashCode = hashCode * Utils.HASH_PRIME + term.hashCode();
+            hashCode = hashCode * Utils.HASH_PRIME + type.hashCode();
+            return hashCode;
+        }
     }
 
     private enum BuilderStatus {
@@ -299,6 +351,7 @@ public class BuiltinList extends Collection {
         private final ImmutableList.Builder<Term> baseTermsBuilder = new ImmutableList.Builder<>();
         private final ImmutableList.Builder<Term> elementsRightBuilder = new ImmutableList.Builder<>();
         private final ImmutableList.Builder<BaseTermType> baseTermTypesBuilder = new ImmutableList.Builder<>();
+        private final ImmutableList.Builder<Variable> listVariablesBuilder = new ImmutableList.Builder<>();
 
         /**
          * Appends the specified term as a list item, namely
@@ -338,8 +391,9 @@ public class BuiltinList extends Collection {
                 baseTermTypesBuilder.add(BaseTermType.FUNCTION);
             } else if (term instanceof Variable) {
                 baseTermTypesBuilder.add(BaseTermType.VARIABLE);
+                listVariablesBuilder.add((Variable) term);
             } else {
-                assert false : "unexpected concatenated term " + term;
+                throw KExceptionManager.criticalError("unexpected concatenated term" + term);
             }
         }
 
@@ -353,9 +407,11 @@ public class BuiltinList extends Collection {
          * Concatenates a term of sort List to this builder.
          */
         public void concatenate(Term term) {
-            assert term.sort().equals(Sort.LIST)
-                : "unexpected sort " + term.sort() + " of concatenated term " + term
-                + "; expected " + Sort.LIST;
+            if (!term.sort().equals(Sort.LIST)) {
+                throw KExceptionManager.criticalError("unexpected sort "
+                        + term.sort() + " of concatenated term " + term
+                        + "; expected " + Sort.LIST);
+            }
 
             if (status == BuilderStatus.ELEMENTS_LEFT) {
                 if (!(term instanceof BuiltinList)) {
@@ -394,8 +450,9 @@ public class BuiltinList extends Collection {
                     }
                 }
             } else {
-                assert false : "the builder is not allowed to concatencate list terms in "
-                        + BuilderStatus.ELEMENTS_RIGHT;
+                throw KExceptionManager.criticalError(
+                        "the builder is not allowed to concatencate list terms in "
+                        + BuilderStatus.ELEMENTS_RIGHT);
             }
         }
 
@@ -427,8 +484,11 @@ public class BuiltinList extends Collection {
                     elementsLeftBuilder.build(),
                     baseTermsBuilder.build(),
                     elementsRightBuilder.build(),
-                    baseTermTypesBuilder.build());
-            return builtinList.hasFrame() && builtinList.concreteSize() == 0 ? builtinList.frame : builtinList;
+                    baseTermTypesBuilder.build(),
+                    listVariablesBuilder.build());
+            return builtinList.baseTerms().size() == 1 && builtinList.concreteSize() == 0 ?
+                   builtinList.baseTerms().get(0) :
+                   builtinList;
         }
     }
 

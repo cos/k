@@ -8,13 +8,18 @@ import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.backend.java.util.Utils;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.DataStructureSort;
-
+import org.kframework.utils.errorsystem.KExceptionManager;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.collections4.map.UnmodifiableMap;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMultiset;
+import com.google.common.collect.Lists;
 
 
 /**
@@ -45,6 +50,12 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
         return builder.build();
     }
 
+    public static Term concatenate(Collection<Term> maps) {
+        Builder builder = new Builder();
+        builder.concatenate(maps);
+        return builder.build();
+    }
+
     public static boolean isMapUnifiableByCurrentAlgorithm(Term term, Term otherTerm) {
         return term instanceof BuiltinMap && ((BuiltinMap) term).isUnifiableByCurrentAlgorithm()
                 && otherTerm instanceof BuiltinMap && ((BuiltinMap) otherTerm).isUnifiableByCurrentAlgorithm();
@@ -60,6 +71,10 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
 
     public boolean isUnifiableByCurrentAlgorithm() {
         return collectionFunctions.isEmpty() && collectionVariables.size() <= 1;
+    }
+
+    public boolean hasOnlyGroundKeys() {
+        return entries.keySet().stream().allMatch(Term::isGround);
     }
 
     @Override
@@ -155,6 +170,29 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
         return transformer.transform(this);
     }
 
+    @Override
+    protected List<Term> getKComponents(TermContext context) {
+        DataStructureSort sort = context.definition().context().dataStructureSortOf(
+                sort().toFrontEnd());
+
+        ArrayList<Term> components = Lists.newArrayList();
+        entries.entrySet().stream().forEach(entry ->
+                components.add(KItem.of(
+                        KLabelConstant.of(sort.elementLabel(), context.definition().context()),
+                        KList.concatenate(entry.getKey(), entry.getValue()),
+                        context)));
+
+        for (Term term : baseTerms()) {
+            if (term instanceof BuiltinMap) {
+                components.addAll(((BuiltinMap) term).getKComponents(context));
+            } else {
+                components.add(term);
+            }
+        }
+
+        return components;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -187,12 +225,18 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
         }
 
         private void concatenate(Term term) {
-            assert term.sort().equals(Sort.MAP)
-            : "unexpected sort " + term.sort() + " of concatenated term " + term
-            + "; expected " + Sort.MAP;
+            if (!term.sort().equals(Sort.MAP)) {
+                throw KExceptionManager.criticalError("unexpected sort "
+                        + term.sort() + " of concatenated term " + term
+                        + "; expected " + Sort.MAP);
+            }
 
             if (term instanceof BuiltinMap) {
                 BuiltinMap map = (BuiltinMap) term;
+
+                assert !entries.keySet().stream().anyMatch(key -> map.entries.containsKey(key)) :
+                    "failed to concatenate maps with common keys!";
+
                 entries.putAll(map.entries);
                 patternsBuilder.addAll(map.collectionPatterns);
                 functionsBuilder.addAll(map.collectionFunctions);
@@ -206,7 +250,7 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
             } else if (term instanceof Variable) {
                 variablesBuilder.add((Variable) term);
             } else {
-                assert false : "unexpected concatenated term" + term;
+                throw KExceptionManager.criticalError("unexpected concatenated term" + term);
             }
         }
 
@@ -238,7 +282,8 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
                     patternsBuilder.build(),
                     functionsBuilder.build(),
                     variablesBuilder.build());
-            return builtinMap.hasFrame() && builtinMap.entries.isEmpty() ? builtinMap.frame : builtinMap;
+            return builtinMap.baseTerms().size() == 1 && builtinMap.concreteSize() == 0 ?
+                    builtinMap.baseTerms().iterator().next() : builtinMap;
         }
     }
 }

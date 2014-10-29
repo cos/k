@@ -6,12 +6,9 @@ import org.kframework.compile.sharing.TokenSortCollector;
 import org.kframework.kil.loader.*;
 import org.kframework.kil.visitors.Visitor;
 import org.kframework.parser.DefinitionLoader;
-import org.kframework.utils.general.GlobalSettings;
-import org.kframework.utils.xml.XML;
-
-import org.w3c.dom.Element;
-
-import java.util.ArrayList;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.Poset;
+import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -25,11 +22,12 @@ import java.util.Map;
 public class Definition extends ASTNode implements Interfaces.MutableList<DefinitionItem, Enum<?>> {
 
     private List<DefinitionItem> items;
-    private String mainFile;
+    private File mainFile;
     private String mainModule;
     /** An index of all modules in {@link #items} by name */
     private Map<String, Module> modulesMap;
     private String mainSyntaxModule;
+    private Poset<String> modules = Poset.create();
 
     public Definition() {
         super();
@@ -43,18 +41,6 @@ public class Definition extends ASTNode implements Interfaces.MutableList<Defini
         this.items = d.items;
     }
 
-    public Definition(Element element) {
-        super(element);
-
-        mainFile = element.getAttribute(Constants.MAINFILE);
-        mainModule = element.getAttribute(Constants.MAINMODULE);
-        items = new ArrayList<DefinitionItem>();
-
-        List<Element> elements = XML.getChildrenElements(element);
-        for (Element e : elements)
-            items.add((DefinitionItem) JavaClassesFactory.getTerm(e));
-    }
-
     @Override
     public String toString() {
         String content = "";
@@ -64,7 +50,21 @@ public class Definition extends ASTNode implements Interfaces.MutableList<Defini
         return "DEF: " + mainFile + " -> " + mainModule + "\n" + content;
     }
 
+    public void addModuleImport(String mainModule, String importedModule) {
+        if (mainModule.equals(importedModule))
+            return;
+        modules.addRelation(mainModule, importedModule);
+    }
 
+    public boolean isModuleIncludedEq(String localModule, String importedModule) {
+        if (localModule.equals(importedModule))
+            return true;
+        return modules.isInRelation(localModule, importedModule);
+    }
+
+    public void finalizeModules() {
+        modules.transitiveClosure();
+    }
 
     public void setItems(List<DefinitionItem> items) {
         this.items = items;
@@ -74,11 +74,11 @@ public class Definition extends ASTNode implements Interfaces.MutableList<Defini
         return items;
     }
 
-    public void setMainFile(String mainFile) {
+    public void setMainFile(File mainFile) {
         this.mainFile = mainFile;
     }
 
-    public String getMainFile() {
+    public File getMainFile() {
         return mainFile;
     }
 
@@ -145,7 +145,7 @@ public class Definition extends ASTNode implements Interfaces.MutableList<Defini
         }
         if (modules.size() != 1) {
             String msg = "Should have been only one module when calling this method.";
-            GlobalSettings.kem.registerInternalError(msg, this);
+            throw KExceptionManager.internalError(msg, this);
         }
         return modules.get(0);
     }
@@ -153,28 +153,6 @@ public class Definition extends ASTNode implements Interfaces.MutableList<Defini
     @Override
     public Definition shallowCopy() {
         return new Definition(this);
-    }
-
-    public Configuration getSingletonConfiguration() throws ConfigurationNotUnique, ConfigurationNotFound {
-        Configuration result = null;
-        for (DefinitionItem i : this.getItems()) {
-            if (i instanceof Module) {
-                if (i.isPredefined())
-                    continue;
-                for (ModuleItem j : ((Module) i).getItems()) {
-                    if (j instanceof Configuration) {
-                        if (result != null) {
-                            throw new ConfigurationNotUnique();
-                        } else {
-                            result = (Configuration)j;
-                        }
-                    }
-                }
-            }
-        }
-        if (result == null)
-            throw new ConfigurationNotFound();
-        return result;
     }
 
     @Override

@@ -9,11 +9,8 @@ import org.kframework.kil.Cell;
 import org.kframework.kil.Cell.Ellipses;
 import org.kframework.kil.CellDataStructure;
 import org.kframework.kil.DataStructureSort;
-import org.kframework.kil.KApp;
-import org.kframework.kil.KInjectedLabel;
 import org.kframework.kil.Production;
 import org.kframework.kil.Sort;
-import org.kframework.kil.Term;
 import org.kframework.kil.UserList;
 import org.kframework.kompile.KompileOptions;
 import org.kframework.krun.ColorOptions;
@@ -21,16 +18,15 @@ import org.kframework.krun.KRunOptions;
 import org.kframework.main.GlobalOptions;
 import org.kframework.utils.Poset;
 import org.kframework.utils.StringUtil;
-import org.kframework.utils.general.GlobalSettings;
-import org.kframework.utils.options.SMTOptions;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.FileUtil;
 
-import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,10 +42,6 @@ import com.google.inject.Singleton;
 
 @Singleton
 public class Context implements Serializable {
-
-    public static final Set<String> generatedTags = ImmutableSet.of(
-            "kgeneratedlabel",
-            "prefixlabel");
 
     public static final Set<Key<String>> parsingTags = ImmutableSet.of(
         Attribute.keyOf("left"),
@@ -78,9 +70,8 @@ public class Context implements Serializable {
     public SetMultimap<String, Production> tags = HashMultimap.create();
     public Map<String, Cell> cells = new HashMap<String, Cell>();
     public Map<String, Sort> cellSorts = new HashMap<>();
-    public Map<Sort, Production> listProductions = new HashMap<>();
+    public Map<Sort, Production> listProductions = new LinkedHashMap<>();
     public SetMultimap<String, Production> listKLabels = HashMultimap.create();
-    public Map<String, String> listLabelSeparator = new HashMap<>();
     public Map<String, ASTNode> locations = new HashMap<String, ASTNode>();
 
     public Map<Sort, Production> canonicalBracketForSort = new HashMap<>();
@@ -90,14 +81,11 @@ public class Context implements Serializable {
     private Poset<String> priorities = Poset.create();
     private Poset<String> assocLeft = Poset.create();
     private Poset<String> assocRight = Poset.create();
-    private Poset<String> modules = Poset.create();
-    private Poset<String> fileRequirements = Poset.create();
     public Sort startSymbolPgm = Sort.K;
     public Map<String, Sort> configVarSorts = new HashMap<>();
-    public File dotk = null;
-    public File kompiled = null;
+    @Deprecated
+    public transient FileUtil files;
     public boolean initialized = false;
-    protected java.util.List<String> komputationCells = null;
     public Map<String, CellDataStructure> cellDataStructures = new HashMap<>();
     public Set<Sort> variableTokenSorts = new HashSet<>();
     public HashMap<Sort, String> freshFunctionNames = new HashMap<>();
@@ -161,7 +149,6 @@ public class Context implements Serializable {
     // TODO(dwightguth): remove these fields and replace with injected dependencies
     @Deprecated @Inject public transient GlobalOptions globalOptions;
     @Deprecated public KompileOptions kompileOptions;
-    @Deprecated @Inject(optional=true) public transient SMTOptions smtOptions;
     @Deprecated @Inject(optional=true) public KRunOptions krunOptions;
     @Deprecated @Inject(optional=true) public ColorOptions colorOptions;
 
@@ -280,44 +267,8 @@ public class Context implements Serializable {
      * @return the sort which is the LUB of the given set of sorts on success;
      *         otherwise {@code null}
      */
-    public Sort getLUBSort(Set<Sort> sorts) {
-        return subsorts.getLUB(sorts);
-    }
-
-    /**
-     * Finds the LUB (Least Upper Bound) of a given set of sorts.
-     *
-     * @param sorts
-     *            the given set of sorts
-     * @return the sort which is the LUB of the given set of sorts on success;
-     *         otherwise {@code null}
-     */
     public Sort getLUBSort(Sort... sorts) {
         return subsorts.getLUB(Sets.newHashSet(sorts));
-    }
-
-    /**
-     * Finds the GLB (Greatest Lower Bound) of a given set of sorts.
-     *
-     * @param sorts
-     *            the given set of sorts
-     * @return the sort which is the GLB of the given set of sorts on success;
-     *         otherwise {@code null}
-     */
-    public Sort getGLBSort(Set<Sort> sorts) {
-        return subsorts.getGLB(sorts);
-    }
-
-    /**
-     * Finds the GLB (Greatest Lower Bound) of a given set of sorts.
-     *
-     * @param sorts
-     *            the given set of sorts
-     * @return the sort which is the GLB of the given set of sorts on success;
-     *         otherwise {@code null}
-     */
-    public Sort getGLBSort(Sort... sorts) {
-        return subsorts.getGLB(Sets.newHashSet(sorts));
     }
 
     /**
@@ -383,52 +334,6 @@ public class Context implements Serializable {
         return priorities.isInRelation(klabelParent, klabelChild);
     }
 
-    public void addFileRequirement(String required, String local) {
-        // add the new subsorting
-        if (required.equals(local))
-            return;
-
-        fileRequirements.addRelation(required, local);
-    }
-
-    public void finalizeRequirements() {
-        fileRequirements.transitiveClosure();
-    }
-
-    public void addModuleImport(String mainModule, String importedModule) {
-        // add the new subsorting
-        if (mainModule.equals(importedModule))
-            return;
-
-        modules.addRelation(mainModule, importedModule);
-    }
-
-    public void finalizeModules() {
-        modules.transitiveClosure();
-    }
-
-    public boolean isModuleIncluded(String localModule, String importedModule) {
-        return modules.isInRelation(localModule, importedModule);
-    }
-
-    public boolean isModuleIncludedEq(String localModule, String importedModule) {
-        if (localModule.equals(importedModule))
-            return true;
-        return modules.isInRelation(localModule, importedModule);
-    }
-
-    public boolean isRequiredEq(String required, String local) {
-        try {
-            required = new File(required).getCanonicalPath();
-            local = new File(local).getCanonicalPath();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        if (required.equals(local))
-            return true;
-        return fileRequirements.isInRelation(required, local);
-    }
-
     public void addSubsort(Sort bigSort, Sort smallSort) {
         subsorts.addRelation(bigSort, smallSort);
     }
@@ -453,7 +358,7 @@ public class Context implements Serializable {
             for (Sort sort : circuit)
                 msg += sort + " < ";
             msg += circuit.get(0);
-            GlobalSettings.kem.registerCriticalError(msg);
+            throw KExceptionManager.criticalError(msg);
         }
         subsorts.transitiveClosure();
         // detect if lists are subsorted (Vals Ids < Exps)
@@ -523,10 +428,6 @@ public class Context implements Serializable {
         return syntacticSubsorts.isInRelation(bigSort, smallSort);
     }
 
-    public boolean isTagGenerated(String key) {
-        return generatedTags.contains(key);
-    }
-
     public boolean isSpecialTerminal(String terminal) {
         return specialTerminals.contains(terminal);
     }
@@ -546,12 +447,6 @@ public class Context implements Serializable {
      */
     public Set<Production> productionsOf(String label) {
         return klabels.get(label);
-    }
-
-    public Term kWrapper(Term t) {
-        if (isSubsortedEq(Sort.K, t.getSort()))
-            return t;
-        return KApp.of(new KInjectedLabel(t));
     }
 
     public Map<Sort, DataStructureSort> getDataStructureSorts() {
@@ -594,13 +489,13 @@ public class Context implements Serializable {
     public void makeFreshFunctionNamesMap(Set<Production> freshProductions) {
         for (Production production : freshProductions) {
             if (!production.containsAttribute(Attribute.FUNCTION_KEY)) {
-                GlobalSettings.kem.registerCompilerError(
+                throw KExceptionManager.compilerError(
                         "missing [function] attribute for fresh function " + production,
                         production);
             }
 
             if (freshFunctionNames.containsKey(production.getSort())) {
-                GlobalSettings.kem.registerCompilerError(
+                throw KExceptionManager.compilerError(
                         "multiple fresh functions for sort " + production.getSort(),
                         production);
             }
@@ -615,6 +510,33 @@ public class Context implements Serializable {
     @Deprecated
     public BiMap<String, Production> getConses() {
         return conses;
+    }
+
+    private int number = 0;
+
+
+    /**
+     * Generate incremental numbers that doesn't contain the number 1
+     *
+     * @return an integer that doesn't contain the number 1
+     */
+    private int getUniqueId() {
+        boolean valid = false;
+        while (!valid) {
+            int nr = number;
+            while (nr > 0) {
+                if (nr % 10 == 1) {
+                    number++;
+                    break;
+                } else {
+                    nr /= 10;
+                }
+            }
+            if (nr == 0) {
+                valid = true;
+            }
+        }
+        return number++;
     }
 
     public void computeConses() {
@@ -633,7 +555,7 @@ public class Context implements Serializable {
                 if (p.isListDecl())
                     cons = StringUtil.escapeSort(p.getSort()) + "1" + "ListSyn";
                 else
-                    cons = StringUtil.escapeSort(p.getSort()) + "1" + StringUtil.getUniqueId() + "Syn";
+                    cons = StringUtil.escapeSort(p.getSort()) + "1" + getUniqueId() + "Syn";
                 conses.put(cons, p);
             }
         }

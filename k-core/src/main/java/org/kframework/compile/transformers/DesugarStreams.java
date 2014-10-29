@@ -3,8 +3,7 @@ package org.kframework.compile.transformers;
 
 import org.kframework.kil.*;
 import org.kframework.kil.visitors.CopyOnWriteTransformer;
-import org.kframework.utils.general.GlobalSettings;
-
+import org.kframework.utils.errorsystem.KExceptionManager;
 import java.util.ArrayList;
 
 
@@ -23,7 +22,7 @@ public class DesugarStreams extends CopyOnWriteTransformer {
     public ASTNode visit(Cell node, Void _)  {
         ASTNode result = super.visit(node, _);
         if (!(result instanceof Cell)) {
-            GlobalSettings.kem.registerInternalError(
+            throw KExceptionManager.internalError(
                     "Expecting Cell, but got " + result.getClass() + " in Streams Desugarer.",
                     this, result);
         }
@@ -65,24 +64,24 @@ public class DesugarStreams extends CopyOnWriteTransformer {
             addAtEnd = contents;
         }
         if(channels.indexOf(stream) == -1){
-            GlobalSettings.kem.registerInternalError(
+            throw KExceptionManager.internalError(
                     "Make sure you give the correct stream names: " + channels.toString(),
                     this, node);
         }
         DataStructureSort myList = context.dataStructureListSortOf(DataStructureSort.DEFAULT_LIST_SORT);
         Term newItems = DataStructureSort.listOf(context, items.toArray(new Term[] {}));
         if (addAtBeginning != null) {
-            newItems = KApp.of(KLabelConstant.of(myList.constructorLabel(), context), addAtBeginning, newItems);
+            newItems = KApp.of(KLabelConstant.of(myList.constructorLabel()), addAtBeginning, newItems);
         }
         if (addAtEnd != null) {
-            newItems = KApp.of(KLabelConstant.of(myList.constructorLabel(), context), newItems, addAtEnd);
+            newItems = KApp.of(KLabelConstant.of(myList.constructorLabel()), newItems, addAtEnd);
         }
         return newItems;
     }
 
     private Term newListItem(Term element) {
         DataStructureSort myList = context.dataStructureListSortOf(DataStructureSort.DEFAULT_LIST_SORT);
-        return KApp.of(KLabelConstant.of(myList.elementLabel(), context), element);
+        return KApp.of(KLabelConstant.of(myList.elementLabel()), element);
     }
 
     @Override

@@ -7,16 +7,16 @@ import org.kframework.backend.java.kil.KLabelConstant;
 import org.kframework.backend.java.kil.KLabelInjection;
 import org.kframework.backend.java.kil.KList;
 import org.kframework.backend.java.kil.KSequence;
-import org.kframework.backend.java.kil.KilFactory;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
+import org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer;
 import org.kframework.kil.Sort;
 import org.kframework.kil.loader.Context;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
+import org.kframework.utils.errorsystem.ParseFailedException;
 import org.kframework.krun.KRunOptions.ConfigurationCreationOptions;
 import org.kframework.krun.RunProcess;
+import org.kframework.krun.RunProcess.ProcessOutput;
 import org.kframework.krun.api.io.FileSystem;
-
 import com.google.inject.Inject;
 
 import java.io.IOException;
@@ -34,7 +34,8 @@ public class BuiltinIOOperationsImpl implements BuiltinIOOperations {
     private final FileSystem fs;
     private final Context context;
     private final ConfigurationCreationOptions ccOptions;
-    private final KilFactory kilFactory;
+    private final KILtoBackendJavaKILTransformer kilTransformer;
+    private final RunProcess rp;
 
     @Inject
     public BuiltinIOOperationsImpl(
@@ -42,12 +43,14 @@ public class BuiltinIOOperationsImpl implements BuiltinIOOperations {
             FileSystem fs,
             Context context,
             ConfigurationCreationOptions ccOptions,
-            KilFactory kilFactory) {
+            KILtoBackendJavaKILTransformer kilTransformer,
+            RunProcess rp) {
         this.def = def;
         this.fs = fs;
         this.context = context;
         this.ccOptions = ccOptions;
-        this.kilFactory = kilFactory;
+        this.kilTransformer = kilTransformer;
+        this.rp = rp;
     }
 
     @Override
@@ -139,12 +142,10 @@ public class BuiltinIOOperationsImpl implements BuiltinIOOperations {
     @Override
     public Term parse(StringToken term1, StringToken term2, TermContext termContext) {
         try {
-            RunProcess rp = new RunProcess();
             org.kframework.kil.Term kast = rp.runParser(
                     ccOptions.parser(context),
                     term1.stringValue(), true, Sort.of(term2.stringValue()), context);
-            Term term = kilFactory.term(kast);
-            term = term.evaluate(termContext);
+            Term term = kilTransformer.transformAndEval(kast);
             return term;
         } catch (ParseFailedException e) {
             return processIOException("noparse", termContext);
@@ -153,11 +154,10 @@ public class BuiltinIOOperationsImpl implements BuiltinIOOperations {
 
     @Override
     public Term system(StringToken term, TermContext termContext) {
-        RunProcess rp = new RunProcess();
         Map<String, String> environment = new HashMap<>();
         String[] args = term.stringValue().split("\001", -1);
         //for (String c : args) { System.out.println(c); }
-        rp.execute(environment, args);
+        ProcessOutput output = rp.execute(environment, args);
 
         KLabelConstant klabel = KLabelConstant.of("'#systemResult(_,_,_)", context);
         /*
@@ -165,9 +165,9 @@ public class BuiltinIOOperationsImpl implements BuiltinIOOperations {
         KLabelConstant klabel = KLabelConstant.of(klabelString, context);
         assert def.kLabels().contains(klabel) : "No KLabel in definition for " + klabelString;
         */
-        String stdout = rp.getStdout() != null ? rp.getStdout() : "";
-        String stderr = rp.getErr()    != null ? rp.getErr()    : "";
-        return KItem.of(klabel, KList.concatenate(IntToken.of(rp.getExitCode()),
+        String stdout = output.stdout != null ? output.stdout : "";
+        String stderr = output.stderr != null ? output.stderr : "";
+        return KItem.of(klabel, KList.concatenate(IntToken.of(output.exitCode),
             StringToken.of(stdout.trim()), StringToken.of(stderr.trim())), termContext);
     }
 

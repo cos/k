@@ -1,9 +1,9 @@
 // Copyright (c) 2012-2014 K Team. All Rights Reserved.
 package org.kframework.kast;
 
-import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.kframework.backend.maude.MaudeFilter;
 import org.kframework.backend.unparser.IndentationOptions;
@@ -12,18 +12,18 @@ import org.kframework.kil.ASTNode;
 import org.kframework.kil.Sort;
 import org.kframework.kil.Source;
 import org.kframework.kil.loader.Context;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
 import org.kframework.main.FrontEnd;
 import org.kframework.parser.ProgramLoader;
 import org.kframework.utils.Stopwatch;
 import org.kframework.utils.errorsystem.KExceptionManager;
-import org.kframework.utils.file.FileUtil;
+import org.kframework.utils.file.Environment;
 import org.kframework.utils.file.JarInfo;
 import org.kframework.utils.inject.JCommanderModule;
 import org.kframework.utils.inject.JCommanderModule.ExperimentalUsage;
 import org.kframework.utils.inject.JCommanderModule.Usage;
 import org.kframework.utils.inject.CommonModule;
 import org.kframework.utils.inject.Main;
+
 import com.google.inject.Inject;
 import com.google.inject.Module;
 import com.google.inject.Provider;
@@ -43,6 +43,9 @@ public class KastFrontEnd extends FrontEnd {
     private final KastOptions options;
     private final Provider<Context> contextProvider;
     private final Stopwatch sw;
+    private final Map<String, String> env;
+    private final ProgramLoader loader;
+    private final KExceptionManager kem;
 
     @Inject
     KastFrontEnd(
@@ -52,11 +55,16 @@ public class KastFrontEnd extends FrontEnd {
             @ExperimentalUsage String experimentalUsage,
             Stopwatch sw,
             KExceptionManager kem,
-            JarInfo jarInfo) {
+            JarInfo jarInfo,
+            @Environment Map<String, String> env,
+            ProgramLoader loader) {
         super(kem, options.global, usage, experimentalUsage, jarInfo);
         this.options = options;
         this.contextProvider = contextProvider;
         this.sw = sw;
+        this.env = env;
+        this.loader = loader;
+        this.kem = kem;
     }
 
     /**
@@ -69,41 +77,39 @@ public class KastFrontEnd extends FrontEnd {
         Source source = options.source();
 
         Context context = contextProvider.get();
-        Sort sort = options.sort(context);
+        Sort sort = sort(options.sort, context);
 
-        try {
-            ASTNode out = ProgramLoader.processPgm(stringToParse, source, sort, context, options.parser);
-            StringBuilder kast;
-            if (options.experimental.pretty) {
-                IndentationOptions indentationOptions = new IndentationOptions(options.experimental.maxWidth(),
-                        options.experimental.auxTabSize, options.experimental.tabSize);
-                KastFilter kastFilter = new KastFilter(indentationOptions, options.experimental.nextLine, context);
-                kastFilter.visitNode(out);
-                kast = kastFilter.getResult();
-            } else {
-                MaudeFilter maudeFilter = new MaudeFilter(context);
-                maudeFilter.visitNode(out);
-                kast = maudeFilter.getResult();
-                kast.append("\n");
-            }
-
-            try {
-                Writer outWriter = new OutputStreamWriter(System.out);
-                try {
-                    FileUtil.toWriter(kast, outWriter);
-                } finally {
-                    outWriter.flush();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            sw.printIntermediate("Maudify Program");
-            sw.printTotal("Total");
-            return true;
-        } catch (ParseFailedException e) {
-            e.report();
-            return false;
+        ASTNode out = loader.processPgm(stringToParse, source, sort, context, options.parser);
+        StringBuilder kast;
+        if (options.experimental.pretty) {
+            IndentationOptions indentationOptions = new IndentationOptions(options.experimental.maxWidth(),
+                    options.experimental.auxTabSize, options.experimental.tabSize);
+            KastFilter kastFilter = new KastFilter(indentationOptions, options.experimental.nextLine, context);
+            kastFilter.visitNode(out);
+            kast = kastFilter.getResult();
+        } else {
+            MaudeFilter maudeFilter = new MaudeFilter(context, kem);
+            maudeFilter.visitNode(out);
+            kast = maudeFilter.getResult();
+            kast.append("\n");
         }
+
+        System.out.print(kast.toString());
+
+        sw.printIntermediate("Maudify Program");
+        sw.printTotal("Total");
+        return true;
+    }
+
+
+    private Sort sort(Sort sort, Context context) {
+        if (sort == null) {
+            if (env.get("KRUN_SORT") != null) {
+                sort = Sort.of(env.get("KRUN_SORT"));
+            } else {
+                sort = context.startSymbolPgm;
+            }
+        }
+        return sort;
     }
 }

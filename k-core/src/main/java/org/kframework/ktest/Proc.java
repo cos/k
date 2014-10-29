@@ -8,11 +8,12 @@ import org.kframework.ktest.StringMatcher.MatchFailure;
 import org.kframework.utils.ColorUtil;
 import org.kframework.utils.OS;
 import org.kframework.utils.StringUtil;
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
 
 import java.awt.*;
 import java.io.*;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.*;
@@ -40,17 +41,17 @@ public class Proc<T> implements Runnable {
     /**
      * Expected program output with location information for output file.
      */
-    private final Annotated<String, String> expectedOut;
+    private final Annotated<String, File> expectedOut;
 
     /**
      * Expected program error.
      */
-    private final Annotated<String, String> expectedErr;
+    private final Annotated<String, File> expectedErr;
 
     /**
      * Process' input source.
      */
-    private final String inputFile;
+    private final File inputFile;
 
     /**
      * Input string to pass to program.
@@ -70,12 +71,12 @@ public class Proc<T> implements Runnable {
     /**
      * Output file to be generated/overwritten when --update-out is used.
      */
-    private final String outputFile;
+    private final File outputFile;
 
     /**
      * Output file to be generated when --generate-out is used.
      */
-    private final String newOutputFile;
+    private final File newOutputFile;
 
     /**
      * Whether the process succeeded or not.
@@ -97,6 +98,9 @@ public class Proc<T> implements Runnable {
      */
     private ProcOutput procOutput = new ProcOutput(null, null, -1);
 
+    private final KExceptionManager kem;
+    private final Map<String, String> env;
+
     public static final int SIGTERM = 143;
 
     /**
@@ -114,10 +118,10 @@ public class Proc<T> implements Runnable {
      * @param outputFile output file to be updated when --update-out is used
      * @param newOutputFile output file to generated when --generate-out is used
      */
-    public Proc(T obj, String[] args, String inputFile, String procInput,
-                Annotated<String, String> expectedOut, Annotated<String, String> expectedErr,
+    public Proc(T obj, String[] args, File inputFile, String procInput,
+                Annotated<String, File> expectedOut, Annotated<String, File> expectedErr,
                 StringMatcher strComparator, File workingDir, KTestOptions options,
-                String outputFile, String newOutputFile) {
+                File outputFile, File newOutputFile, KExceptionManager kem, Map<String, String> env) {
         this.obj = obj;
         this.args = args;
         this.inputFile = inputFile;
@@ -129,12 +133,14 @@ public class Proc<T> implements Runnable {
         this.options = options;
         this.outputFile = outputFile;
         this.newOutputFile = newOutputFile;
+        this.kem = kem;
+        this.env = env;
         success = options.dry;
     }
 
-    public Proc(T obj, String[] args, File workingDir, KTestOptions options) {
+    public Proc(T obj, String[] args, File workingDir, KTestOptions options, KExceptionManager kem, Map<String, String> env) {
         this(obj, args, null, "", null, null, options.getDefaultStringMatcher(), workingDir,
-                options, null, null);
+                options, null, null, kem, env);
     }
 
     @Override
@@ -181,14 +187,14 @@ public class Proc<T> implements Runnable {
             return null;
         } else {
             ProcessBuilder pb = new ProcessBuilder(args).directory(workingDir);
+            pb.environment().clear();
+            pb.environment().putAll(env);
             pb.environment().put("kompile", ExecNames.getKompile());
             pb.environment().put("krun", ExecNames.getKrun());
             pb.environment().put("kast", ExecNames.getKast());
 
             try {
-                if (options.isVerbose()) {
-                    printVerboseRunningMsg(toLogString(args));
-                }
+                printRunningMsg(toLogString(args));
                 long startTime = System.currentTimeMillis();
                 Process proc = pb.start();
 
@@ -218,7 +224,7 @@ public class Proc<T> implements Runnable {
                     return new ProcOutput(null, null, returnCode);
                 }
             } catch (IOException | InterruptedException e) {
-                GlobalSettings.kem.registerInternalWarning(e.getMessage(), e);
+                kem.registerInternalWarning(e.getMessage(), e);
                 reportErr("program failed with exception: " + e.getMessage());
             }
             return null; // unreachable
@@ -290,7 +296,6 @@ public class Proc<T> implements Runnable {
     private void handlePgmResult(ProcOutput normalOutput, ProcOutput debugOutput) {
         String red = ColorUtil.RgbToAnsi(
                 Color.RED, options.getColorSetting(), options.getTerminalColor());
-        boolean verbose = options.isVerbose();
         String logStr = toLogString(args);
         if (normalOutput.returnCode == 0) {
 
@@ -300,8 +305,7 @@ public class Proc<T> implements Runnable {
             if (expectedOut == null) {
                 // we're not comparing outputs
                 success = true;
-                if (verbose)
-                    System.out.format("Done with [%s] (time %d ms)%n", logStr, timeDelta);
+                System.out.format("Done with [%s] (time %d ms)%n", logStr, timeDelta);
                 doGenerateOut = true;
             } else {
                 try {
@@ -309,8 +313,7 @@ public class Proc<T> implements Runnable {
 
                     // outputs match
                     success = true;
-                    if (verbose)
-                        System.out.format("Done with [%s] (time %d ms)%n", logStr, timeDelta);
+                    System.out.format("Done with [%s] (time %d ms)%n", logStr, timeDelta);
                 } catch (MatchFailure e) {
                     // outputs don't match
                     System.out.format(
@@ -318,8 +321,7 @@ public class Proc<T> implements Runnable {
                         "%s (time: %d ms)%s%n",
                         red, logStr, expectedOut.getAnn(), timeDelta, ColorUtil.ANSI_NORMAL);
                     reportOutMatch(e.getMessage());
-                    if (verbose)
-                        System.out.println(getReason());
+                    System.out.println(getReason());
                     doGenerateOut = true;
                 }
             }
@@ -328,17 +330,17 @@ public class Proc<T> implements Runnable {
             if (options.getUpdateOut() && outputFile != null) {
                 System.out.println("Updating output file: " + outputFile);
                 try {
-                    IOUtils.write(normalOutput.stdout, new FileOutputStream(new File(outputFile)));
+                    IOUtils.write(normalOutput.stdout, new FileOutputStream(outputFile));
                 } catch (IOException e) {
-                    GlobalSettings.kem.registerInternalWarning(e.getMessage(), e);
+                    kem.registerInternalWarning(e.getMessage(), e);
                 }
             }
             if (doGenerateOut && options.getGenerateOut() && newOutputFile != null) {
                 System.out.println("Generating output file: " + newOutputFile);
                 try {
-                    IOUtils.write(normalOutput.stdout, new FileOutputStream(new File(newOutputFile)));
+                    IOUtils.write(normalOutput.stdout, new FileOutputStream(newOutputFile));
                 } catch (IOException e) {
-                    GlobalSettings.kem.registerInternalWarning(e.getMessage(), e);
+                    kem.registerInternalWarning(e.getMessage(), e);
                 }
             }
 
@@ -359,7 +361,7 @@ public class Proc<T> implements Runnable {
                         red, logStr, timeDelta, ColorUtil.ANSI_NORMAL);
                 if (debugOutput != null) {
                     System.out.format("error was: %s%n", debugOutput.stderr);
-                } else if (verbose) {
+                } else {
                     System.out.format("error was: %s%n", normalOutput.stderr);
                 }
                 reportErr(normalOutput.stderr);
@@ -368,8 +370,7 @@ public class Proc<T> implements Runnable {
                     strComparator.matches(expectedErr.getObj(), normalOutput.stderr);
                     // error outputs match
                     success = true;
-                    if (verbose)
-                        System.out.format("Done with [%s] (time %d ms)%n", logStr, timeDelta);
+                    System.out.format("Done with [%s] (time %d ms)%n", logStr, timeDelta);
                 } catch (MatchFailure e) {
                     // error outputs don't match
                     System.out.format(
@@ -379,7 +380,7 @@ public class Proc<T> implements Runnable {
                     if (debugOutput != null) {
                         System.out.format("error output was (except the stack trace): %s%n",
                                 debugOutput.stderr);
-                    } else if (verbose) {
+                    } else {
                         System.out.format("error output was: %s%n", normalOutput.stderr);
                     }
                     reportErrMatch(e.getMessage());
@@ -408,7 +409,7 @@ public class Proc<T> implements Runnable {
         reason = "Timeout";
     }
 
-    private void printVerboseRunningMsg(String logStr) {
+    private void printRunningMsg(String logStr) {
         StringBuilder b = new StringBuilder();
         b.append("Running [");
         b.append(logStr);

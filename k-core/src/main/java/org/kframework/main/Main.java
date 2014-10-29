@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.ServiceLoader;
 
 import org.fusesource.jansi.AnsiConsole;
-import org.kframework.kagreg.KagregFrontEnd;
 import org.kframework.kast.KastFrontEnd;
 import org.kframework.kompile.KompileFrontEnd;
 import org.kframework.krun.KRunFrontEnd;
@@ -41,12 +40,15 @@ public class Main {
                 boolean succeeded = injector.getInstance(FrontEnd.class).main();
                 System.exit(succeeded ? 0 : 1);
             } catch (ProvisionException e) {
-                kem.print();
                 for (Message m : e.getErrorMessages()) {
                     if (!(m.getCause() instanceof KEMException)) {
                         throw e;
+                    } else {
+                        KEMException ex = (KEMException) m.getCause();
+                        ex.register(kem);
                     }
                 }
+                kem.print();
                 System.exit(1);
             }
         }
@@ -73,11 +75,6 @@ public class Main {
                         }
                     }
                     break;
-                case "-kagreg":
-                    modules = KagregFrontEnd.getModules(args2);
-                    break;
-                case "-kcheck":
-                    throw new AssertionError("kcheck no longer supported");
                 case "-ktest":
                     modules.addAll(KTestFrontEnd.getModules(args2));
                     for (KModule kModule : kModules) {

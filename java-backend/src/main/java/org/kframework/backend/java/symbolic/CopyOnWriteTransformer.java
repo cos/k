@@ -82,7 +82,7 @@ public class CopyOnWriteTransformer implements Transformer {
         if (term != constrainedTerm.term()
                 || lookups != constrainedTerm.lookups()
                 || constraint != constrainedTerm.constraint()) {
-            constrainedTerm = new ConstrainedTerm(term, lookups, constraint, context);
+            constrainedTerm = new ConstrainedTerm(term, lookups, constraint);
         }
         return constrainedTerm;
     }
@@ -499,8 +499,11 @@ public class CopyOnWriteTransformer implements Transformer {
         for (Term conditionItem : rule.ensures()) {
             processedEnsures.add((Term) conditionItem.accept(this));
         }
-        Set<Variable> processedFreshVariables = new HashSet<Variable>(
-                rule.freshVariables().size());
+        Set<Variable> processedFreshConstants = new HashSet<>(rule.freshConstants().size());
+        for (Variable variable : rule.freshConstants()) {
+            processedFreshConstants.add((Variable) variable.accept(this));
+        }
+        Set<Variable> processedFreshVariables = new HashSet<>(rule.freshVariables().size());
         for (Variable variable : rule.freshVariables()) {
             processedFreshVariables.add((Variable) variable.accept(this));
         }
@@ -524,7 +527,7 @@ public class CopyOnWriteTransformer implements Transformer {
                 || processedRightHandSide != rule.rightHandSide()
                 || processedRequires.equals(rule.requires())
                 || processedEnsures.equals(rule.ensures())
-                || processedFreshVariables.equals(rule.freshVariables())
+                || processedFreshConstants.equals(rule.freshConstants())
                 || processedLookups != rule.lookups()) {
             return new Rule(
                     rule.label(),
@@ -532,6 +535,7 @@ public class CopyOnWriteTransformer implements Transformer {
                     processedRightHandSide,
                     processedRequires,
                     processedEnsures,
+                    processedFreshConstants,
                     processedFreshVariables,
                     processedLookups,
                     rule.isCompiledForFastRewriting(),
@@ -556,7 +560,7 @@ public class CopyOnWriteTransformer implements Transformer {
                     (Term) entry.getValue().accept(this));
         }
 
-        for (SymbolicConstraint.Equality equality : symbolicConstraint.equalities()) {
+        for (Equality equality : symbolicConstraint.equalities()) {
             transformedSymbolicConstraint.add(
                     (Term) equality.leftHandSide().accept(this),
                     (Term) equality.rightHandSide().accept(this));
@@ -573,16 +577,6 @@ public class CopyOnWriteTransformer implements Transformer {
     @Override
     public ASTNode transform(Variable variable) {
         return variable;
-    }
-
-    @Override
-    public ASTNode transform(BuiltinMgu mgu) {
-        SymbolicConstraint transformedConstraint = (SymbolicConstraint) mgu.constraint().accept(this);
-        if (transformedConstraint == mgu.constraint()) {
-            return BuiltinMgu.of(transformedConstraint, context);
-        } else {
-            return mgu;
-        }
     }
 
 }

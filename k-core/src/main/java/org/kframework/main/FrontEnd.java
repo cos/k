@@ -5,7 +5,6 @@ import org.kframework.utils.StringUtil;
 import org.kframework.utils.errorsystem.KException;
 import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.JarInfo;
-
 import com.beust.jcommander.ParameterException;
 
 public abstract class FrontEnd {
@@ -43,7 +42,7 @@ public abstract class FrontEnd {
                 try {
                     succeeded = run();
                 } catch (ParameterException e) {
-                    kem.registerCriticalError(e.getMessage(), e);
+                    throw KExceptionManager.criticalError(e.getMessage(), e);
                 }
                 kem.print();
             }
@@ -53,6 +52,7 @@ public abstract class FrontEnd {
             if (globalOptions.debug) {
                 e.printStackTrace();
             }
+            e.register(kem);
             kem.print();
         }
         return succeeded;

@@ -7,17 +7,14 @@ import java.util.Map;
 import org.apache.commons.lang3.tuple.Pair;
 import org.kframework.backend.java.kil.MaximalSharing;
 import org.kframework.backend.java.kil.Sort;
-import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.Token;
-import org.kframework.backend.java.symbolic.Matcher;
 import org.kframework.backend.java.symbolic.Transformer;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
 import org.kframework.kil.FloatBuiltin;
 import org.kframework.mpfr.BigFloat;
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
 
 public class FloatToken extends Token implements MaximalSharing {
 
@@ -104,16 +101,6 @@ public class FloatToken extends Token implements MaximalSharing {
     }
 
     @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
-    }
-
-    @Override
     public ASTNode accept(Transformer transformer) {
         return transformer.transform(this);
     }
@@ -131,7 +118,7 @@ public class FloatToken extends Token implements MaximalSharing {
     public static Pair<Integer, Integer> getExponentAndSignificandOrDie(ASTNode t) {
         Pair<Integer, Integer> pair = getExponentAndSignificand(t);
         if (pair == null) {
-            GlobalSettings.kem.registerCriticalError("Expected floating point number variable to declare an exponent and a significand." +
+            throw KExceptionManager.criticalError("Expected floating point number variable to declare an exponent and a significand." +
                     " For example, F:Float{exponent(11), significand(53)} for a double-precision floating point number.");
         }
         return pair;
@@ -146,9 +133,8 @@ public class FloatToken extends Token implements MaximalSharing {
         try {
             return Pair.of(Integer.parseInt(exponent), Integer.parseInt(significand));
         } catch (NumberFormatException e) {
-            GlobalSettings.kem.registerCriticalError("Expected variable attributes 'exponent' and 'significand' to " +
+            throw KExceptionManager.criticalError("Expected variable attributes 'exponent' and 'significand' to " +
                     "be integers, found: " + t.getAttribute(Attribute.EXPONENT_KEY) + " " + t.getAttribute(Attribute.SIGNIFICAND_KEY), e);
-            throw new AssertionError("unreachable");
         }
     }
 

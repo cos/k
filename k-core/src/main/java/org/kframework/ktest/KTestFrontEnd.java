@@ -11,6 +11,8 @@ import org.kframework.ktest.Test.TestSuite;
 import org.kframework.main.FrontEnd;
 import org.kframework.main.GlobalOptions;
 import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.Environment;
+import org.kframework.utils.file.FileUtil;
 import org.kframework.utils.file.JarInfo;
 import org.kframework.utils.inject.JCommanderModule;
 import org.kframework.utils.inject.JCommanderModule.ExperimentalUsage;
@@ -24,6 +26,7 @@ import com.google.inject.Module;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -43,6 +46,8 @@ public class KTestFrontEnd extends FrontEnd {
 
     private final KTestOptions options;
     private final KExceptionManager kem;
+    private final Map<String, String> env;
+    private final FileUtil files;
 
     @Inject
     KTestFrontEnd(
@@ -51,25 +56,27 @@ public class KTestFrontEnd extends FrontEnd {
             GlobalOptions globalOptions,
             @Usage String usage,
             @ExperimentalUsage String experimentalUsage,
-            JarInfo jarInfo) {
+            JarInfo jarInfo,
+            @Environment Map<String, String> env,
+            FileUtil files) {
         super(kem, globalOptions, usage, experimentalUsage, jarInfo);
         this.options = options;
         this.options.setDebug(globalOptions.debug);
         this.kem = kem;
+        this.env = env;
+        this.files = files;
     }
 
     public boolean run() {
         try {
-            options.validateArgs();
+            options.validateArgs(files);
             return makeTestSuite(options.getTargetFile(), options).run();
-        } catch (SAXException | ParserConfigurationException | IOException | InterruptedException |
-                TransformerException | ParameterException e) {
-            kem.registerCriticalError(e.getMessage(), e);
-            return false;
+        } catch (SAXException | ParserConfigurationException | IOException | TransformerException
+                | ParameterException e) {
+            throw KExceptionManager.criticalError(e.getMessage(), e);
         } catch (InvalidConfigError e) {
             LocationData location = e.getLocation();
-            kem.registerCriticalError(e.getMessage(), e, location.getLocation(), location.getSource());
-            return false;
+            throw KExceptionManager.criticalError(e.getMessage(), e, location.getLocation(), location.getSource());
         }
     }
 
@@ -79,14 +86,14 @@ public class KTestFrontEnd extends FrontEnd {
         switch (FilenameUtils.getExtension(targetFile)) {
         case "xml":
             ret = new TestSuite(new ConfigFileParser(
-                    new File(cmdArgs.getTargetFile()), cmdArgs).parse(), cmdArgs);
+                    new File(cmdArgs.getTargetFile()), cmdArgs, env, kem, files).parse(), cmdArgs, files);
             break;
         case "k":
-            TestCase tc = TestCase.makeTestCaseFromK(cmdArgs);
+            TestCase tc = TestCase.makeTestCaseFromK(cmdArgs, kem, files, env);
             tc.validate();
             List<TestCase> tcs = new LinkedList<>();
             tcs.add(tc);
-            ret = new TestSuite(tcs, cmdArgs);
+            ret = new TestSuite(tcs, cmdArgs, files);
             break;
         default:
             // this code should be unreacable, because `validateArgs' should ensure that

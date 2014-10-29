@@ -1,9 +1,8 @@
 // Copyright (c) 2013-2014 K Team. All Rights Reserved.
 package org.kframework.backend.java.symbolic;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.kframework.backend.java.kil.CellLabel;
@@ -14,6 +13,9 @@ import org.kframework.backend.java.kil.Rule;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.kil.Variable;
+import org.kframework.utils.errorsystem.KExceptionManager;
+
+import com.google.common.collect.Lists;
 
 
 /**
@@ -25,12 +27,15 @@ import org.kframework.backend.java.kil.Variable;
  */
 public class MacroExpander extends CopyOnWriteTransformer {
 
-    public MacroExpander(TermContext context) {
+    private final KExceptionManager kem;
+
+    public MacroExpander(TermContext context, KExceptionManager kem) {
         super(context);
+        this.kem = kem;
     }
 
     public Definition processDefinition() {
-        Definition processedDefinition = new Definition(definition.context(), definition.indexingData);
+        Definition processedDefinition = new Definition(definition.context(), kem, definition.indexingData);
         processedDefinition.addKLabelCollection(definition.kLabels());
         processedDefinition.addFrozenKLabelCollection(definition.frozenKLabels());
         for (Rule rule : definition.rules()) {
@@ -55,11 +60,11 @@ public class MacroExpander extends CopyOnWriteTransformer {
     public Rule processRule(Rule rule) {
         Term processedLeftHandSide = processTerm(rule.leftHandSide());
         Term processedRightHandSide = processTerm(rule.rightHandSide());
-        Collection<Term> processedRequires = new ArrayList<Term>(rule.requires().size());
+        List<Term> processedRequires = Lists.newArrayListWithCapacity(rule.requires().size());
         for (Term conditionItem : rule.requires()) {
             processedRequires.add(processTerm(conditionItem));
         }
-        Collection<Term> processedEnsures = new ArrayList<Term>(rule.ensures().size());
+        List<Term> processedEnsures = Lists.newArrayListWithCapacity(rule.ensures().size());
         for (Term conditionItem : rule.ensures()) {
             processedEnsures.add(processTerm(conditionItem));
         }
@@ -85,6 +90,7 @@ public class MacroExpander extends CopyOnWriteTransformer {
                 processedRightHandSide,
                 processedRequires,
                 processedEnsures,
+                rule.freshConstants(),
                 rule.freshVariables(),
                 processedLookups,
                 rule.isCompiledForFastRewriting(),
@@ -126,7 +132,7 @@ public class MacroExpander extends CopyOnWriteTransformer {
 
     private Term applyMacroRule(Term term) {
         for (Rule rule : definition.macros()) {
-            Map<Variable, Term> subst = NonACPatternMatcher.patternMatch(term, rule, context);
+            Map<Variable, Term> subst = NonACPatternMatcher.match(term, rule, context);
             if (subst != null) {
                 return rule.rightHandSide().substituteAndEvaluate(subst, context);
             }

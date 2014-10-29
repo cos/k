@@ -12,15 +12,11 @@ import org.kframework.backend.java.builtins.BuiltinMapOperations;
 import org.kframework.backend.java.builtins.BuiltinSetOperations;
 import org.kframework.backend.java.builtins.BuiltinStringOperations;
 import org.kframework.backend.java.builtins.BuiltinSubstitutionOperations;
-import org.kframework.backend.java.builtins.BuiltinUnificationOperations;
 import org.kframework.backend.java.builtins.BuiltinVisitorOperations;
 import org.kframework.backend.java.builtins.FreshOperations;
 import org.kframework.backend.java.builtins.MetaK;
 import org.kframework.backend.java.builtins.SortMembership;
 import org.kframework.backend.java.builtins.TermEquality;
-import org.kframework.backend.java.kil.BuiltinMgu.BuiltinMguOperations;
-import org.kframework.krun.api.io.FileSystem;
-import org.kframework.krun.ioserver.filesystem.portable.PortableFileSystem;
 import org.kframework.utils.inject.Builtins;
 
 import com.google.common.collect.ImmutableSet;
@@ -42,8 +38,6 @@ public class JavaSymbolicCommonModule extends AbstractModule {
             BuiltinStringOperations.class,
             BuiltinBitVectorOperations.class,
             MetaK.class,
-            BuiltinMguOperations.class,
-            BuiltinUnificationOperations.class,
             BuiltinSubstitutionOperations.class,
             BuiltinCollectionOperations.class,
             BuiltinListOperations.class,
@@ -56,7 +50,6 @@ public class JavaSymbolicCommonModule extends AbstractModule {
             FreshOperations.class);
     @Override
     protected void configure() {
-        bind(FileSystem.class).to(PortableFileSystem.class);
 
         MapBinder<Class<?>, Object> builtinFunctionBinder = MapBinder.newMapBinder(binder(),
                 new TypeLiteral<Class<?>>() {}, TypeLiteral.get(Object.class), Builtins.class);

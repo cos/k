@@ -2,11 +2,12 @@
 package org.kframework.kil;
 
 import org.kframework.kil.loader.Constants;
-import org.kframework.kil.loader.Context;
 import org.kframework.kil.loader.JavaClassesFactory;
 import org.kframework.kil.visitors.Visitor;
 import org.kframework.utils.xml.XML;
 import org.w3c.dom.Element;
+
+import com.google.common.base.Preconditions;
 
 /** Represents parentheses uses for grouping. All productions labeled bracket parse to this. */
 public class Cast extends Term implements Interfaces.MutableParent<Term, Enum<?>> {
@@ -50,21 +51,19 @@ public class Cast extends Term implements Interfaces.MutableParent<Term, Enum<?>
         this.type = i.type;
     }
 
-    public Cast(Term t, Context context) {
-        super(t.getSort());
-        this.content = t;
+    public Cast(Term t, CastType type, org.kframework.kil.loader.Context context) {
+        this(null, null, t, type, context);
     }
 
-    public Cast(Location location, Source source, Sort sort) {
-        super(location, source, sort);
-    }
-
-    public Cast(Location location, Source source, Term t, org.kframework.kil.loader.Context context) {
+    public Cast(Location location, Source source, Term t, CastType type, org.kframework.kil.loader.Context context) {
         super(location, source, t.getSort());
+        Preconditions.checkNotNull(t);
+        Preconditions.checkNotNull(type);
         this.content = t;
+        this.type = type;
     }
 
-    public Cast(Element element) {
+    public Cast(Element element, JavaClassesFactory factory) {
         super(element);
         if (element.getAttribute("type").equals("semantic"))
             this.type = CastType.SEMANTIC;
@@ -74,11 +73,11 @@ public class Cast extends Term implements Interfaces.MutableParent<Term, Enum<?>
             this.type = CastType.INNER;
         else if (element.getAttribute("type").equals("outer"))
             this.type = CastType.OUTER;
-        this.content = (Term) JavaClassesFactory.getTerm(XML.getChildrenElements(element).get(0));
+        this.content = (Term) factory.getTerm(XML.getChildrenElements(element).get(0));
 
         java.util.List<Element> its = XML.getChildrenElementsByTagName(element, Constants.ATTRIBUTES);
         if (its.size() > 0) {
-            getAttributes().putAll((Attributes) JavaClassesFactory.getTerm(its.get(0)));
+            getAttributes().putAll((Attributes) factory.getTerm(its.get(0)));
         }
     }
 

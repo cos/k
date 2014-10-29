@@ -5,8 +5,7 @@ import org.kframework.compile.utils.MetaK;
 import org.kframework.kil.*;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.CopyOnWriteTransformer;
-import org.kframework.utils.general.GlobalSettings;
-
+import org.kframework.utils.errorsystem.KExceptionManager;
 import java.util.ArrayList;
 
 /**
@@ -49,14 +48,14 @@ public class AddSuperheatRules extends CopyOnWriteTransformer {
             return node;
         }
         boolean superheat = false;
-        for (String heat : kompileOptions.superheat) {
+        for (String heat : context.kompileOptions.superheat) {
             if (node.containsAttribute(heat)) {
                 superheat = true;
                 break;
             }
         }
         if (!(node.getBody() instanceof Rewrite)) {
-            GlobalSettings.kem.registerCriticalError(
+            throw KExceptionManager.criticalError(
                             "Heating rules should have rewrite at the top.",
                             this, node);
         }
@@ -83,8 +82,8 @@ public class AddSuperheatRules extends CopyOnWriteTransformer {
         Rule superHeat = node.shallowCopy();
         Term left = body.getLeft(); // C[e]
         Term right = body.getRight(); // e ~> C
-        Variable restHeat = Variable.getFreshVar(Sort.K);
-        Variable lHeat = Variable.getFreshVar(Sort.KLIST);
+        Variable restHeat = Variable.getAnonVar(Sort.K);
+        Variable lHeat = Variable.getAnonVar(Sort.KLIST);
         KSequence red1Seq = new KSequence();
         red1Seq.add(left); red1Seq.add(restHeat); //C[e] ~> RestHeat:K,
         KList red1List = new KList();
@@ -108,7 +107,7 @@ public class AddSuperheatRules extends CopyOnWriteTransformer {
         KList inListList = new KList();
         inListList.add(red2);
         inListList.add(KApp.of(new KInjectedLabel(lHeat)));
-        Term inList = new KApp(KLabelConstant.of("'_inKList_", context), inListList);
+        Term inList = new KApp(KLabelConstant.of("'_inKList_"), inListList);
         KList condList = new KList();
         condList.add(inList);
         condList.add(BoolBuiltin.TRUE);

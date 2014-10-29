@@ -12,7 +12,6 @@ import org.kframework.backend.java.builtins.UninterpretedToken;
 import org.kframework.backend.java.indexing.IndexingTable;
 import org.kframework.backend.java.kil.BuiltinList;
 import org.kframework.backend.java.kil.BuiltinMap;
-import org.kframework.backend.java.kil.BuiltinMgu;
 import org.kframework.backend.java.kil.BuiltinSet;
 import org.kframework.backend.java.kil.Cell;
 import org.kframework.backend.java.kil.CellCollection;
@@ -57,6 +56,7 @@ import org.kframework.kil.StringBuiltin;
 import org.kframework.kil.TermComment;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.CopyOnWriteTransformer;
+import org.kframework.utils.errorsystem.KExceptionManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -66,6 +66,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -94,24 +95,27 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
             = Collections.emptyMap();
     private final GlobalContext globalContext;
     private final IndexingTable.Data indexingData;
+    private final KExceptionManager kem;
 
     @Inject
     public KILtoBackendJavaKILTransformer(
             Context context,
             GlobalContext globalContext,
             @FreshRules boolean freshRules,
-            IndexingTable.Data data) {
+            IndexingTable.Data data,
+            KExceptionManager kem) {
         super("Transform KIL into java backend KIL", context);
         this.freshRules = freshRules;
         this.globalContext = globalContext;
         this.indexingData = data;
+        this.kem = kem;
     }
 
     public Definition transformDefinition(org.kframework.kil.Definition node) {
         Definition transformedDef = (Definition) this.visitNode(node);
         globalContext.setDefinition(transformedDef);
 
-        Definition expandedDefinition = new MacroExpander(TermContext.of(globalContext)).processDefinition();
+        Definition expandedDefinition = new MacroExpander(TermContext.of(globalContext), kem).processDefinition();
         globalContext.setDefinition(expandedDefinition);
 
         Definition evaluatedDefinition = evaluateDefinition(globalContext);
@@ -119,16 +123,18 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
         return evaluatedDefinition;
     }
 
-    public Rule transformRule(org.kframework.kil.Rule node) {
+    public Rule transformAndEval(org.kframework.kil.Rule node) {
         Rule rule = null;
-        rule = new MacroExpander(TermContext.of(globalContext)).processRule((Rule) this.visitNode(node));
+        rule = new MacroExpander(TermContext.of(globalContext), kem).processRule((Rule) this.visitNode(node));
+        rule = evaluateRule(rule, globalContext);
 
         return rule;
     }
 
-    public Term transformTerm(org.kframework.kil.Term node, Definition definition) {
+    public Term transformAndEval(org.kframework.kil.Term node) {
         Term term = null;
-        term = new MacroExpander(TermContext.of(globalContext)).processTerm((Term) this.visitNode(node));
+        term = new MacroExpander(TermContext.of(globalContext), kem).processTerm((Term) this.visitNode(node));
+        term = term.evaluate(TermContext.of(globalContext));
 
         return term;
     }
@@ -299,8 +305,6 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                 return new Cell<Term>(CellLabel.of(node.getLabel()), content);
             } else if (content instanceof KItemProjection) {
                 return new Cell<KItemProjection>(CellLabel.of(node.getLabel()), (KItemProjection) content);
-            } else if (content instanceof BuiltinMgu) {
-                return new Cell<BuiltinMgu>(CellLabel.of(node.getLabel()), (BuiltinMgu) content);
             } else {
                 throw new RuntimeException();
             }
@@ -468,12 +472,12 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
         Term leftHandSide = (Term) this.visitNode(rewrite.getLeft());
         Term rightHandSide = (Term) this.visitNode(rewrite.getRight());
 
-        Collection<Term> requires = new ArrayList<>();
+        List<Term> requires = new ArrayList<>();
         if (node.getRequires() != null) {
             transformConjunction(requires, (Term) this.visitNode(node.getRequires()));
         }
 
-        Collection<Term> ensures = new ArrayList<>();
+        List<Term> ensures = new ArrayList<>();
         if (node.getEnsures() != null) {
             transformConjunction(ensures, (Term) this.visitNode(node.getEnsures()));
         }
@@ -520,17 +524,19 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
 
         }
 
-        Collection<Variable> freshVariables = new ArrayList<>();
         // TODO(AndreiS): check !Variable only appears in the RHS
-        for (org.kframework.kil.Variable variable : node.getBody().variables()) {
-            if (variable.isFreshConstant()) {
-                freshVariables.add((Variable) this.visitNode(variable));
-            }
-        }
+        Set<Variable> freshConstants = node.getBody().variables().stream()
+                .filter(v -> v.isFreshConstant())
+                .map(v -> (Variable) this.visitNode(v))
+                .collect(Collectors.toSet());
+
+        Set<Variable> freshVariables = node.getBody().variables().stream()
+                .filter(v -> v.isFreshVariable())
+                .map(v -> (Variable) this.visitNode(v))
+                .collect(Collectors.toSet());
 
         assert leftHandSide.kind() == rightHandSide.kind()
-               || ((leftHandSide.kind() == Kind.KITEM || leftHandSide.kind() == Kind.K || leftHandSide.kind() == Kind.KLIST)
-                   && (rightHandSide.kind() == Kind.KITEM || rightHandSide.kind() == Kind.K || rightHandSide.kind() == Kind.KLIST));
+                || leftHandSide.kind().isComputational() && rightHandSide.kind().isComputational();
 
         concreteCollectionSize = Collections.emptyMap();
 
@@ -561,6 +567,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                 rightHandSide,
                 requires,
                 ensures,
+                freshConstants,
                 freshVariables,
                 lookupsBuilder.build(),
                 ruleData.isCompiledForFastRewriting(),
@@ -591,7 +598,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
 
     @Override
     public ASTNode visit(org.kframework.kil.Definition node, Void _) {
-        Definition definition = new Definition(context, indexingData);
+        Definition definition = new Definition(context, kem, indexingData);
         globalContext.setDefinition(definition);
 
         Module singletonModule = node.getSingletonModule();
@@ -717,6 +724,7 @@ public class KILtoBackendJavaKILTransformer extends CopyOnWriteTransformer {
                 rightHandSide,
                 requires,
                 ensures,
+                rule.freshConstants(),
                 rule.freshVariables(),
                 lookupsBuilder.build(),
                 rule.isCompiledForFastRewriting(),

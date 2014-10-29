@@ -276,8 +276,7 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
         }
         assert astNode instanceof BuiltinList : "preTransformer should not modify type";
         builtinList = (BuiltinList) astNode;
-        builtinList = (BuiltinList) super.transform(builtinList);
-        return builtinList.accept(postTransformer);
+        return ((JavaSymbolicObject) super.transform(builtinList)).accept(postTransformer);
     }
 
     @Override
@@ -299,8 +298,7 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
         }
         assert astNode instanceof BuiltinSet : "preTransformer should not modify type";
         builtinSet = (BuiltinSet) astNode;
-        builtinSet = (BuiltinSet) super.transform(builtinSet);
-        return builtinSet.accept(postTransformer);
+        return ((JavaSymbolicObject) super.transform(builtinSet)).accept(postTransformer);
     }
 
     @Override
@@ -431,18 +429,6 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
         variable = (Variable) astNode;
         variable = (Variable) super.transform(variable);
         return variable.accept(postTransformer);
-    }
-
-    @Override
-    public ASTNode transform(BuiltinMgu mgu) {
-        ASTNode astNode = mgu.accept(preTransformer);
-        if (astNode instanceof DoneTransforming) {
-            return ((DoneTransforming) astNode).getContents();
-        }
-        assert astNode instanceof BuiltinMgu : "preTransformer should not modify type";
-        mgu = (BuiltinMgu) astNode;
-        mgu = (BuiltinMgu) super.transform(mgu);
-        return mgu.accept(postTransformer);
     }
 
     protected class DoneTransforming extends ASTNode {

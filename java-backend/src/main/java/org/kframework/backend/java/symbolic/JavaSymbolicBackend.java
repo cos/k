@@ -11,7 +11,6 @@ import org.kframework.backend.java.compile.DataStructureToLookupUpdate;
 import org.kframework.backend.java.compile.GenerateKRewriteMachineInstructions;
 import org.kframework.backend.java.compile.JavaBackendCell2DataStructure;
 import org.kframework.backend.java.indexing.RuleIndex;
-import org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer;
 import org.kframework.compile.FlattenModules;
 import org.kframework.compile.ResolveConfigurationAbstraction;
 import org.kframework.compile.checks.CheckConfigurationCells;
@@ -30,11 +29,11 @@ import org.kframework.kil.loader.CollectSubsortsVisitor;
 import org.kframework.kil.loader.Context;
 import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.Stopwatch;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.FileUtil;
 
 import com.google.inject.Inject;
 import com.google.inject.Provider;
-
-import java.io.File;
 
 
 /**
@@ -49,6 +48,8 @@ public class JavaSymbolicBackend extends BasicBackend {
     private final BinaryLoader loader;
     private final Provider<RuleIndex> index;
     private final Provider<KILtoBackendJavaKILTransformer> transformer;
+    private final FileUtil files;
+    private final KExceptionManager kem;
 
     @Inject
     JavaSymbolicBackend(
@@ -56,11 +57,15 @@ public class JavaSymbolicBackend extends BasicBackend {
             Context context,
             BinaryLoader loader,
             Provider<RuleIndex> index,
-            Provider<KILtoBackendJavaKILTransformer> transformer) {
+            Provider<KILtoBackendJavaKILTransformer> transformer,
+            FileUtil files,
+            KExceptionManager kem) {
         super(sw, context);
         this.loader = loader;
         this.index = index;
         this.transformer = transformer;
+        this.files = files;
+        this.kem = kem;
     }
 
     @Override
@@ -69,8 +74,7 @@ public class JavaSymbolicBackend extends BasicBackend {
 
         definition.setIndex(index.get());
 
-        loader.saveOrDie(new File(context.kompiled,
-                JavaSymbolicBackend.DEFINITION_FILENAME).toString(),
+        loader.saveOrDie(files.resolveKompiled(JavaSymbolicBackend.DEFINITION_FILENAME),
                 definition);
 
         return javaDef;
@@ -93,11 +97,11 @@ public class JavaSymbolicBackend extends BasicBackend {
         steps.add(new RemoveBrackets(context));
         // SetVariablesInferredSort must be performed before AddEmptyLists
         steps.add(new SetVariablesInferredSort(context));
-        steps.add(new AddEmptyLists(context));
+        steps.add(new AddEmptyLists(context, kem));
         steps.add(new RemoveSyntacticCasts(context));
-        steps.add(new CheckVisitorStep<Definition>(new CheckVariables(context), context));
+        steps.add(new CheckVisitorStep<Definition>(new CheckVariables(context, kem), context));
         steps.add(new CheckVisitorStep<Definition>(new CheckRewrite(context), context));
-        steps.add(new FlattenModules(context));
+        steps.add(new FlattenModules(context, kem));
 
         steps.add(new CompleteSortLatice(context));
         steps.add(new CheckVisitorStep<Definition>(new CollectProductionsVisitor(context), context));
@@ -135,17 +139,17 @@ public class JavaSymbolicBackend extends BasicBackend {
         steps.add(new AddInjections(context));
 
         steps.add(new FlattenSyntax(context));
-        steps.add(new ResolveBlockingInput(context));
+        steps.add(new ResolveBlockingInput(context, kem));
         steps.add(new InitializeConfigurationStructure(context));
         //steps.add(new AddKStringConversion(context));
         //steps.add(new AddKLabelConstant(context));
         steps.add(new ResolveHybrid(context));
-        steps.add(new ResolveConfigurationAbstraction(context));
+        steps.add(new ResolveConfigurationAbstraction(context, kem));
         steps.add(new ResolveOpenCells(context));
         steps.add(new ResolveRewrite(context));
 
         /* data structure related stuff */
-        steps.add(new CompileDataStructures(context));
+        steps.add(new CompileDataStructures(context, kem));
         steps.add(new JavaBackendCell2DataStructure(context));
         steps.add(new DataStructureToLookupUpdate(context));
 

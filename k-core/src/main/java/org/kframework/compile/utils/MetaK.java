@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.kframework.compile.transformers.Cell2DataStructure;
 import org.kframework.kil.Attribute;
 import org.kframework.kil.Bag;
 import org.kframework.kil.BoolBuiltin;
@@ -39,7 +41,7 @@ import org.kframework.kil.UserList;
 import org.kframework.kil.Variable;
 import org.kframework.kil.visitors.BasicVisitor;
 import org.kframework.utils.StringUtil;
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
 
 public class MetaK {
 
@@ -132,19 +134,10 @@ public class MetaK {
             }
         }.visitNode(node);
         if (result.size() == 0) {
-            GlobalSettings.kem.registerInternalError("Internal compiler error --- Cannot find configuration.",
+            throw KExceptionManager.internalError("Internal compiler error --- Cannot find configuration.",
                     node);
         }
         return result.get(0);
-    }
-
-    public static Term defaultTerm(Term v, org.kframework.kil.loader.Context context) {
-        Sort sort = v.getSort();
-        Sort ksort = sort.getKSort().mainSort();
-        if (ksort.isDefaultable())
-            return new ListTerminator(Sort.of(ksort.toString()), null);
-        GlobalSettings.kem.registerCompilerWarning("Don't know the default value for term " + v.toString() + ". Assuming .K", v);
-        return KSequence.EMPTY;
     }
 
     public static boolean isAnywhere(Rule r) {
@@ -232,12 +225,12 @@ public class MetaK {
 
     public static Term getTerm(Production prod, org.kframework.kil.loader.Context context) {
         if (prod.isSubsort()) {
-            return Variable.getFreshVar(prod.getSubsort());
+            return Variable.getAnonVar(prod.getSubsort());
         }
         if (prod.isConstant()) {
             String terminal = ((Terminal) prod.getItems().get(0)).getTerminal();
             if (prod.getSort().equals(Sort.KLABEL)) {
-                return KLabelConstant.of(terminal, context);
+                return KLabelConstant.of(terminal);
             } else if (prod.getSort().equals(Sort.BUILTIN_BOOL)) {
                 return BoolBuiltin.kAppOf(terminal);
             } else if (prod.getSort().equals(Sort.BUILTIN_INT)) {
@@ -249,19 +242,19 @@ public class MetaK {
             }
         }
         if (prod.isLexical()) {
-            return KApp.of(KLabelConstant.of("#token", context),
+            return KApp.of(KLabelConstant.of("#token"),
                            StringBuiltin.kAppOf(prod.getSort().getName()),
-                           Variable.getFreshVar(Sort.STRING));
+                           Variable.getAnonVar(Sort.STRING));
         }
         TermCons t = new TermCons(prod.getSort(), prod);
         if (prod.isListDecl()) {
-            t.getContents().add(Variable.getFreshVar(((UserList) prod.getItems().get(0)).getSort()));
-            t.getContents().add(Variable.getFreshVar(prod.getSort()));
+            t.getContents().add(Variable.getAnonVar(((UserList) prod.getItems().get(0)).getSort()));
+            t.getContents().add(Variable.getAnonVar(prod.getSort()));
             return t;
         }
         for (ProductionItem item : prod.getItems()) {
             if (item instanceof NonTerminal) {
-                t.getContents().add(Variable.getFreshVar(((NonTerminal) item).getSort()));
+                t.getContents().add(Variable.getAnonVar(((NonTerminal) item).getSort()));
             }
         }
         return t;
@@ -276,7 +269,9 @@ public class MetaK {
         new BasicVisitor(context) {
             @Override
             public Void visit(Cell node, Void _) {
-                cells.add(node);
+                if (!node.getLabel().startsWith(Cell2DataStructure.MAP_CELL_CELL_LABEL_PREFIX)) {
+                    cells.add(node);
+                }
                 return null;
             }
         }.visitNode(t);

@@ -5,8 +5,7 @@ import org.kframework.compile.utils.MetaK;
 import org.kframework.kil.*;
 import org.kframework.kil.Cell.Ellipses;
 import org.kframework.kil.visitors.CopyOnWriteTransformer;
-import org.kframework.utils.general.GlobalSettings;
-
+import org.kframework.utils.errorsystem.KExceptionManager;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -39,21 +38,21 @@ public class ResolveOpenCells extends CopyOnWriteTransformer {
             if (ellipses == Ellipses.BOTH || ellipses == Ellipses.LEFT) {
                 content = KApp.of(
                         KLabelConstant.of(dataStructureSort.constructorLabel()),
-                        Variable.getFreshVar(dataStructureSort.sort()),
+                        Variable.getAnonVar(dataStructureSort.sort()),
                         content);
             }
             if (ellipses == Ellipses.BOTH || ellipses == Ellipses.RIGHT) {
                 content = KApp.of(
                         KLabelConstant.of(dataStructureSort.constructorLabel()),
                         content,
-                        Variable.getFreshVar(dataStructureSort.sort()));
+                        Variable.getAnonVar(dataStructureSort.sort()));
             }
 
             node.setContents(content);
             return node;
         }
 
-        Sort kind = node.getContents().getSort().getKSort().mainSort();
+        Sort kind = context.getCellSort(node).getKSort().mainSort();
         Collection col;
         if (node.getContents() instanceof Collection) {
             col = (Collection) node.getContents().shallowCopy();
@@ -61,7 +60,7 @@ public class ResolveOpenCells extends CopyOnWriteTransformer {
         } else {
             col = MetaK.createCollection(node.getContents(), kind);
             if (col == null) {
-                GlobalSettings.kem.registerCompilerError(
+                throw KExceptionManager.compilerError(
                         "Expecting a collection item here but got " + node.getContents() + " which is of sort " + kind,
                         this, node);
 
@@ -73,10 +72,10 @@ public class ResolveOpenCells extends CopyOnWriteTransformer {
             ellipses = Ellipses.RIGHT;
         }
         if (ellipses == Ellipses.BOTH || ellipses == Ellipses.LEFT) {
-            col.getContents().add(0, Variable.getFreshVar(Sort.of(kind.toString())));
+            col.getContents().add(0, Variable.getAnonVar(Sort.of(kind.toString())));
         }
         if (ellipses == Ellipses.BOTH || ellipses == Ellipses.RIGHT) {
-            col.getContents().add(Variable.getFreshVar(Sort.of(kind.toString())));
+            col.getContents().add(Variable.getAnonVar(Sort.of(kind.toString())));
         }
 
         return node;

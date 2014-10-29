@@ -10,7 +10,6 @@ import java.util.Map;
 import org.kframework.backend.java.kil.ConstrainedTerm;
 import org.kframework.backend.java.kil.Definition;
 import org.kframework.backend.java.kil.GlobalContext;
-import org.kframework.backend.java.kil.KilFactory;
 import org.kframework.backend.java.kil.Rule;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
@@ -28,8 +27,6 @@ import org.kframework.krun.api.SearchResult;
 import org.kframework.krun.api.SearchResults;
 import org.kframework.krun.api.SearchType;
 import org.kframework.krun.tools.Executor;
-import org.kframework.utils.general.IndexingStatistics;
-
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 
@@ -37,7 +34,7 @@ public class JavaSymbolicExecutor implements Executor {
 
     private final Definition definition;
     private final JavaExecutionOptions javaOptions;
-    private final KilFactory kilFactory;
+    private final KILtoBackendJavaKILTransformer kilTransformer;
     private final GlobalContext globalContext;
     private final Provider<SymbolicRewriter> symbolicRewriter;
     private final KILtoBackendJavaKILTransformer transformer;
@@ -47,14 +44,14 @@ public class JavaSymbolicExecutor implements Executor {
     JavaSymbolicExecutor(
             Context context,
             JavaExecutionOptions javaOptions,
-            KilFactory kilFactory,
+            KILtoBackendJavaKILTransformer kilTransformer,
             GlobalContext globalContext,
             Provider<SymbolicRewriter> symbolicRewriter,
             KILtoBackendJavaKILTransformer transformer,
             Definition definition) {
         this.context = context;
         this.javaOptions = javaOptions;
-        this.kilFactory = kilFactory;
+        this.kilTransformer = kilTransformer;
         this.globalContext = globalContext;
         this.symbolicRewriter = symbolicRewriter;
         this.transformer = transformer;
@@ -64,15 +61,7 @@ public class JavaSymbolicExecutor implements Executor {
 
     @Override
     public KRunResult<KRunState> run(org.kframework.kil.Term cfg) throws KRunExecutionException {
-        if (javaOptions.indexingStats){
-            IndexingStatistics.totalKrunStopwatch.start();
-            KRunResult<KRunState> result = internalRun(cfg, -1);
-            IndexingStatistics.totalKrunStopwatch.stop();
-            IndexingStatistics.print();
-            return result;
-        } else{
-            return internalRun(cfg, -1);
-        }
+        return internalRun(cfg, -1);
     }
 
     private KRunResult<KRunState> internalRun(org.kframework.kil.Term cfg, int bound) throws KRunExecutionException {
@@ -87,13 +76,8 @@ public class JavaSymbolicExecutor implements Executor {
     }
 
     private ConstrainedTerm javaKILRun(org.kframework.kil.Term cfg, int bound) {
-        if (javaOptions.indexingStats){
-            IndexingStatistics.preProcessStopWatch.start();
-        }
-
-        Term term = kilFactory.term(cfg);
+        Term term = kilTransformer.transformAndEval(cfg);
         TermContext termContext = TermContext.of(globalContext);
-        term = term.evaluate(termContext);
 
         if (javaOptions.patternMatching) {
             FastDestructiveRewriter rewriter = new FastDestructiveRewriter(definition, termContext);
@@ -101,19 +85,8 @@ public class JavaSymbolicExecutor implements Executor {
             return rewriteResult;
         } else {
             SymbolicConstraint constraint = new SymbolicConstraint(termContext);
-            ConstrainedTerm constrainedTerm = new ConstrainedTerm(term, constraint, termContext);
-            if (javaOptions.indexingStats){
-                IndexingStatistics.preProcessStopWatch.stop();
-            }
-            ConstrainedTerm rewriteResult;
-            if (javaOptions.indexingStats) {
-                IndexingStatistics.totalRewriteStopwatch.start();
-                rewriteResult = getSymbolicRewriter().rewrite(constrainedTerm, bound);
-                IndexingStatistics.totalRewriteStopwatch.stop();
-            } else {
-                rewriteResult = getSymbolicRewriter().rewrite(constrainedTerm, bound);
-            }
-            return rewriteResult;
+            ConstrainedTerm constrainedTerm = new ConstrainedTerm(term, constraint);
+            return getSymbolicRewriter().rewrite(constrainedTerm, bound);
         }
     }
 
@@ -126,10 +99,6 @@ public class JavaSymbolicExecutor implements Executor {
             org.kframework.kil.Rule pattern,
             org.kframework.kil.Term cfg,
             RuleCompilerSteps compilationInfo) throws KRunExecutionException {
-
-        if (javaOptions.indexingStats){
-            IndexingStatistics.totalSearchStopwatch.start();
-        }
 
         List<Rule> claims = Collections.emptyList();
         if (bound == null) {
@@ -145,21 +114,20 @@ public class JavaSymbolicExecutor implements Executor {
         c.setLabel("generatedTop");
         c.setContents(new org.kframework.kil.Bag());
         pattern.setBody(new org.kframework.kil.Rewrite(pattern.getBody(), c, context));
-        Rule patternRule = transformer.transformRule(pattern);
+        Rule patternRule = transformer.transformAndEval(pattern);
 
         List<SearchResult> searchResults = new ArrayList<SearchResult>();
         List<Map<Variable,Term>> hits;
+        Term initialTerm = kilTransformer.transformAndEval(cfg);
+        Term targetTerm = null;
+        TermContext termContext = TermContext.of(globalContext);
         if (javaOptions.patternMatching) {
-            Term initialTerm = kilFactory.term(cfg);
-            Term targetTerm = null;
-            GroundRewriter rewriter = new GroundRewriter(definition, TermContext.of(globalContext));
+            GroundRewriter rewriter = new GroundRewriter(definition, termContext);
             hits = rewriter.search(initialTerm, targetTerm, claims,
                     patternRule, bound, depth, searchType);
         } else {
-            ConstrainedTerm initialTerm = new ConstrainedTerm(kilFactory.term(cfg), TermContext.of(globalContext));
-            ConstrainedTerm targetTerm = null;
             hits = getSymbolicRewriter().search(initialTerm, targetTerm, claims,
-                    patternRule, bound, depth, searchType);
+                    patternRule, bound, depth, searchType, termContext);
         }
 
         for (Map<Variable,Term> map : hits) {
@@ -181,8 +149,7 @@ public class JavaSymbolicExecutor implements Executor {
             searchResults.add(new SearchResult(
                     new KRunState(rawResult),
                     substitutionMap,
-                    compilationInfo,
-                    context));
+                    compilationInfo));
         }
 
         // TODO(ericmikida): Make the isDefaultPattern option set in some reasonable way
@@ -191,10 +158,6 @@ public class JavaSymbolicExecutor implements Executor {
                 null,
                 false));
 
-        if (javaOptions.indexingStats){
-            IndexingStatistics.totalSearchStopwatch.stop();
-            IndexingStatistics.print();
-        }
         return searchResultsKRunResult;
     }
 

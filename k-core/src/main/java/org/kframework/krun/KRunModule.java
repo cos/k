@@ -1,14 +1,10 @@
 // Copyright (c) 2014 K Team. All Rights Reserved.
 package org.kframework.krun;
 
-import java.io.File;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
-import org.kframework.backend.Backends;
-import org.kframework.backend.maude.krun.MaudeExecutor;
-import org.kframework.backend.maude.krun.MaudeModelChecker;
 import org.kframework.backend.unparser.BinaryOutputMode;
 import org.kframework.backend.unparser.KASTOutputMode;
 import org.kframework.backend.unparser.NoOutputMode;
@@ -26,7 +22,6 @@ import org.kframework.kil.Configuration;
 import org.kframework.kil.Term;
 import org.kframework.kil.loader.Context;
 import org.kframework.kompile.KompileOptions;
-import org.kframework.krun.InitialConfigurationProvider;
 import org.kframework.krun.KRunOptions.ConfigurationCreationOptions;
 import org.kframework.krun.api.ExecutorDebugger;
 import org.kframework.krun.api.KRunGraph;
@@ -35,9 +30,10 @@ import org.kframework.krun.api.KRunState;
 import org.kframework.krun.api.SearchResult;
 import org.kframework.krun.api.SearchResults;
 import org.kframework.krun.api.Transition;
+import org.kframework.krun.api.io.FileSystem;
+import org.kframework.krun.ioserver.filesystem.portable.PortableFileSystem;
 import org.kframework.krun.tools.Debugger;
 import org.kframework.krun.tools.Executor;
-import org.kframework.krun.tools.GuiDebugger;
 import org.kframework.krun.tools.LtlModelChecker;
 import org.kframework.krun.tools.Prover;
 import org.kframework.main.FrontEnd;
@@ -53,6 +49,7 @@ import org.kframework.transformation.TransformationProvider;
 import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.Stopwatch;
 import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.FileUtil;
 import org.kframework.utils.inject.InjectGeneric;
 import org.kframework.utils.inject.Main;
 import org.kframework.utils.inject.Options;
@@ -97,6 +94,8 @@ public class KRunModule extends AbstractModule {
         bind(GlobalOptions.class).toInstance(options.global);
         bind(ColorOptions.class).toInstance(options.color);
 
+        bind(FileSystem.class).to(PortableFileSystem.class);
+
         Multibinder<Object> optionsBinder = Multibinder.newSetBinder(binder(), Object.class, Options.class);
         optionsBinder.addBinding().toInstance(options);
         Multibinder<Class<?>> experimentalOptionsBinder = Multibinder.newSetBinder(binder(), new TypeLiteral<Class<?>>() {}, Options.class);
@@ -117,7 +116,7 @@ public class KRunModule extends AbstractModule {
                       TypeToken<?> fieldType = TypeToken.of(typeLiteral.getFieldType(field).getType());
                       TypeToken<? extends TransformationProvider<?>> genericProviderTypeToken = providerOf(fieldType);
                       TypeLiteral<? extends TransformationProvider<?>> genericProviderTypeLiteral = (TypeLiteral<? extends TransformationProvider<?>>) TypeLiteral.get(genericProviderTypeToken.getType());
-                      typeEncounter.register(new TransformationMembersInjector<I>(field, typeEncounter.getProvider(Key.get(genericProviderTypeLiteral)), typeEncounter.getProvider(KExceptionManager.class)));
+                      typeEncounter.register(new TransformationMembersInjector<I>(field, typeEncounter.getProvider(Key.get(genericProviderTypeLiteral))));
                     }
                 }
             }
@@ -153,7 +152,6 @@ public class KRunModule extends AbstractModule {
         MapBinder<ToolActivation, Transformation<Void, KRunResult<?>>> krunResultTools = MapBinder.newMapBinder(
                 binder(), TypeLiteral.get(ToolActivation.class), new TypeLiteral<Transformation<Void, KRunResult<?>>>() {});
         mainTools.addBinding(new ToolActivation.OptionActivation("--debugger")).to(Debugger.Tool.class);
-        mainTools.addBinding(new ToolActivation.OptionActivation("--debugger-gui")).to(GuiDebugger.class);
         krunResultTools.addBinding(new ToolActivation.OptionActivation("--ltlmc")).to(LtlModelChecker.Tool.class);
         krunResultTools.addBinding(new ToolActivation.OptionActivation("--ltlmc-file")).to(LtlModelChecker.Tool.class);
         krunResultTools.addBinding(new ToolActivation.OptionActivation("--prove")).to(Prover.Tool.class);
@@ -191,23 +189,20 @@ public class KRunModule extends AbstractModule {
         @Override
         protected void configure() {
             //bind backend implementations of tools to their interfaces
-            MapBinder<String, Executor> executorBinder = MapBinder.newMapBinder(
+            MapBinder.newMapBinder(
                     binder(), String.class, Executor.class);
-            executorBinder.addBinding(Backends.MAUDE).to(MaudeExecutor.class);
-            executorBinder.addBinding(Backends.SYMBOLIC).to(MaudeExecutor.class);
 
-            MapBinder<String, LtlModelChecker> ltlBinder = MapBinder.newMapBinder(
+            MapBinder.newMapBinder(
                     binder(), String.class, LtlModelChecker.class);
-            ltlBinder.addBinding(Backends.MAUDE).to(MaudeModelChecker.class);
-            ltlBinder.addBinding(Backends.SYMBOLIC).to(MaudeModelChecker.class);
 
             MapBinder.newMapBinder(
                     binder(), String.class, Prover.class);
 
             bind(Debugger.class).to(ExecutorDebugger.class);
 
-            bind(Term.class).toProvider(InitialConfigurationProvider.class);
+            bind(Term.class).toProvider(InitialConfigurationProvider.class).in(Singleton.class);
 
+            bind(FileUtil.class);
 
         }
 
@@ -217,24 +212,39 @@ public class KRunModule extends AbstractModule {
         }
 
         @Provides
-        Executor getExecutor(KompileOptions options, Map<String, Provider<Executor>> map) {
-            return map.get(options.backend).get();
+        Executor getExecutor(KompileOptions options, Map<String, Provider<Executor>> map, KExceptionManager kem) {
+            Provider<Executor> provider = map.get(options.backend);
+            if (provider == null) {
+                throw KExceptionManager.criticalError("Backend " + options.backend + " does not support execution. Supported backends are: "
+                        + map.keySet());
+            }
+            return provider.get();
         }
 
         @Provides
-        LtlModelChecker getModelChecker(KompileOptions options, Map<String, Provider<LtlModelChecker>> map) {
-            return map.get(options.backend).get();
+        LtlModelChecker getModelChecker(KompileOptions options, Map<String, Provider<LtlModelChecker>> map, KExceptionManager kem) {
+            Provider<LtlModelChecker> provider = map.get(options.backend);
+            if (provider == null) {
+                throw KExceptionManager.criticalError("Backend " + options.backend + " does not support ltl model checking. Supported backends are: "
+                        + map.keySet());
+            }
+            return provider.get();
         }
 
         @Provides
-        Prover getProver(KompileOptions options, Map<String, Provider<Prover>> map) {
-            return map.get(options.backend).get();
+        Prover getProver(KompileOptions options, Map<String, Provider<Prover>> map, KExceptionManager kem) {
+            Provider<Prover> provider = map.get(options.backend);
+            if (provider == null) {
+                throw KExceptionManager.criticalError("Backend " + options.backend + " does not support program verification. Supported backends are: "
+                        + map.keySet());
+            }
+            return provider.get();
         }
 
         @Provides @Singleton
-        Configuration configuration(BinaryLoader loader, Context context, Stopwatch sw) {
+        Configuration configuration(BinaryLoader loader, Context context, Stopwatch sw, FileUtil files) {
             Configuration cfg = loader.loadOrDie(Configuration.class,
-                    new File(context.kompiled, "configuration.bin").getAbsolutePath());
+                    files.resolveKompiled("configuration.bin"));
             sw.printIntermediate("Reading configuration from binary");
             return cfg;
         }
@@ -270,8 +280,6 @@ public class KRunModule extends AbstractModule {
             }
 
             bind(ConfigurationCreationOptions.class).toInstance(options.configurationCreation);
-            bind(GuiDebugger.class).annotatedWith(Main.class).to(GuiDebugger.class);
-            expose(GuiDebugger.class).annotatedWith(Main.class);
         }
     }
 }

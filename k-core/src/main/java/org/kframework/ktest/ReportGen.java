@@ -4,7 +4,7 @@ package org.kframework.ktest;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
@@ -30,8 +30,11 @@ public class ReportGen {
     private int count = 0;
     private int failures = 0;
 
-    public ReportGen() {
+    private final File junitFolder;
+
+    public ReportGen(File junitFolder) {
         reports = new HashMap<>();
+        this.junitFolder = junitFolder;
     }
 
     public void addFailure(String definition, String name, long timeDelta, String stdout,
@@ -50,10 +53,9 @@ public class ReportGen {
     }
 
     public void save() throws ParserConfigurationException, TransformerException, IOException {
-        File junitFolder = new File("junit-reports");
         if (!junitFolder.isDirectory()) {
             if (!junitFolder.mkdirs()) {
-                GlobalSettings.kem.registerCriticalError("Could not create directory " + junitFolder);
+                throw KExceptionManager.criticalError("Could not create directory " + junitFolder);
             }
         }
 

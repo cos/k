@@ -1,7 +1,8 @@
 // Copyright (c) 2011-2014 K Team. All Rights Reserved.
 package org.kframework.ktest.Config;
 
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.FileUtil;
 import org.w3c.dom.*;
 import org.w3c.dom.events.Event;
 import org.w3c.dom.events.EventListener;
@@ -13,6 +14,7 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.helpers.LocatorImpl;
 import org.xml.sax.helpers.XMLFilterImpl;
 
+import java.util.Map;
 import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,9 +34,13 @@ public class ConfigPreProcessor extends XMLFilterImpl {
     private final Stack<Locator> locatorStack = new Stack<>();
     private final Stack<Element> elementStack = new Stack<>();
     private final UserDataHandler dataHandler = new LocationDataHandler();
+    private final Map<String, String> env;
+    private final FileUtil files;
 
-    ConfigPreProcessor(XMLReader xmlReader, Document dom) {
+    ConfigPreProcessor(XMLReader xmlReader, Document dom, Map<String, String> env, FileUtil files) {
         super(xmlReader);
+        this.env = env;
+        this.files = files;
 
         // Add listener to DOM, so we know which node was added.
         EventListener modListener = new EventListener() {
@@ -75,7 +81,7 @@ public class ConfigPreProcessor extends XMLFilterImpl {
             Locator startLocator = locatorStack.pop();
 
             LocationData location = new LocationData(
-                    startLocator.getSystemId(),
+                    files.resolveWorkingDirectory(startLocator.getSystemId()),
                     startLocator.getLineNumber(),
                     startLocator.getColumnNumber(),
                     locator.getLineNumber(),
@@ -117,13 +123,12 @@ public class ConfigPreProcessor extends XMLFilterImpl {
         Matcher m = Pattern.compile("\\$\\{(.*?)\\}").matcher(str);
         if (m.find()) {
             String var = m.group(1);
-            String val = System.getenv(var);
+            String val = env.get(var);
             if (val != null) {
                 return resolveEnvVars(m.replaceFirst(val));
             } else {
                 String msg = "The variable is not defined in the system environment: " + var;
-                GlobalSettings.kem.registerCriticalError(msg);
-                return null; // unreachable code
+                throw KExceptionManager.criticalError(msg);
             }
         } else {
             return str;

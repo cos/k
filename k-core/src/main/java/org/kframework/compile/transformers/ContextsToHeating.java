@@ -6,8 +6,7 @@ import org.kframework.compile.utils.Substitution;
 import org.kframework.kil.*;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.CopyOnWriteTransformer;
-import org.kframework.utils.general.GlobalSettings;
-
+import org.kframework.utils.errorsystem.KExceptionManager;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +33,7 @@ public class ContextsToHeating extends CopyOnWriteTransformer {
      * v is a fresh variable and term = C[t1 => t2] */
     private List<Term> splitRewrite(Term term)  {
         final Variable v;
-        v = Variable.getFreshVar(Sort.KITEM);
+        v = Variable.getAnonVar(Sort.KITEM);
         final List<Term> list = new ArrayList<Term>();
         CopyOnWriteTransformer transformer = new CopyOnWriteTransformer("splitter", context) {
             @Override public ASTNode visit(Rewrite rewrite, Void _) {
@@ -76,13 +75,13 @@ public class ContextsToHeating extends CopyOnWriteTransformer {
         Term body = (Term) new ResolveAnonymousVariables(context).visitNode(node.getBody());
         int countHoles = MetaK.countHoles(body, context);
         if (countHoles == 0) {
-            GlobalSettings.kem.registerCriticalError(
+            throw KExceptionManager.criticalError(
                             "Contexts must have at least one HOLE.",
                             this, node);
         }
         Integer countRewrites = MetaK.countRewrites(body, context);
         if (countRewrites > 1) {
-            GlobalSettings.kem.registerCriticalError(
+            throw KExceptionManager.criticalError(
                             "Contexts can contain at most one rewrite",
                             this, node);
         } else if (countRewrites == 0) {
@@ -94,7 +93,7 @@ public class ContextsToHeating extends CopyOnWriteTransformer {
         Term left = r.get(2);
         Term right = r.get(3);
         if (!(left instanceof Hole)) {
-            GlobalSettings.kem.registerCriticalError(
+            throw KExceptionManager.criticalError(
                             "Only the HOLE can be rewritten in a context definition",
                             this, node);
         }

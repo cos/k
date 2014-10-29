@@ -8,6 +8,7 @@ import org.kframework.ktest.IgnoringStringMatcher;
 import org.kframework.ktest.KTestStep;
 import org.kframework.ktest.StringMatcher;
 import org.kframework.main.GlobalOptions;
+import org.kframework.utils.file.FileUtil;
 import org.kframework.utils.options.BaseEnumConverter;
 import org.kframework.utils.options.EnumSetConverter;
 import org.kframework.utils.options.OnOffConverter;
@@ -18,6 +19,7 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.ParametersDelegate;
 import com.google.inject.Inject;
+
 import java.awt.Color;
 import java.io.File;
 import java.util.ArrayList;
@@ -43,13 +45,23 @@ public class KTestOptions {
     public KTestOptions(Void v) {}
 
     public static final class KTestStepSetConverter extends EnumSetConverter<KTestStep, KTestStepConverter> {
+
+        public KTestStepSetConverter(String optionName) {
+            super(optionName);
+        }
+
         @Override
         public KTestStepConverter enumConverter() {
-            return new KTestStepConverter();
+            return new KTestStepConverter(getOptionName());
         }
     }
 
     public static final class KTestStepConverter extends BaseEnumConverter<KTestStep> {
+
+        public KTestStepConverter(String optionName) {
+            super(optionName);
+        }
+
         @Override
         public Class<KTestStep> enumClass() {
             return KTestStep.class;
@@ -182,6 +194,8 @@ public class KTestOptions {
      */
     private boolean debug = false;
 
+    public final long start = System.currentTimeMillis();
+
     /**
      * Copy constructor.
      * @param obj KTestOptions object to copy
@@ -212,8 +226,8 @@ public class KTestOptions {
      * which are needed for TestSuite to run tests.
      * @throws ParameterException in case of an invalid argument
      */
-    public void validateArgs() throws ParameterException {
-        String currentDir = System.getProperty("user.dir");
+    public void validateArgs(FileUtil files) throws ParameterException {
+        String currentDir = files.resolveWorkingDirectory(".").getAbsolutePath();
 
         if (parameters == null || parameters.size() != 1)
             throw new ParameterException("ktest requires exactly one <file> parameter.");
@@ -228,11 +242,11 @@ public class KTestOptions {
             throw new ParameterException("target file format is not valid: " + ext +
                     "(should be .xml or .k)");
 
-        directory = getDirectoryArg("directory", _directory, currentDir);
+        directory = getDirectoryArg("directory", _directory, currentDir, files);
         programs = getDirectoryArg("programs", _programs,
-                FilenameUtils.concat(currentDir, FilenameUtils.getFullPath(targetFile)));
+                FilenameUtils.concat(currentDir, FilenameUtils.getFullPath(targetFile)), files);
         results = getDirectoryArg("results", _results,
-                FilenameUtils.concat(currentDir, FilenameUtils.getFullPath(targetFile)));
+                FilenameUtils.concat(currentDir, FilenameUtils.getFullPath(targetFile)), files);
 
         if (updateOut && generateOut) {
             throw new ParameterException("cannot have both options at once: --" +
@@ -344,10 +358,10 @@ public class KTestOptions {
         return new IgnoringStringMatcher(ignoreWS, ignoreBalancedParens);
     }
 
-    private static String getDirectoryArg(String argName, String value, String default_)
+    private static String getDirectoryArg(String argName, String value, String default_, FileUtil files)
             throws ParameterException {
         final String ret = (value == null ? default_ : value);
-        File f = new File(ret);
+        File f = files.resolveWorkingDirectory(ret);
         if (!f.isDirectory())
             throw new ParameterException("--" + argName + " argument is not a folder: " +
                     ret);

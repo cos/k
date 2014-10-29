@@ -21,14 +21,18 @@ import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.FileUtil;
 
 import com.google.inject.Inject;
+import com.google.inject.Provider;
 
 public class CoqBackend extends BasicBackend {
-    private final KExceptionManager kem;
+
+    private final FileUtil files;
+    private final Provider<ProcessBuilder> pb;
 
     @Inject
-    public CoqBackend(Stopwatch sw, Context context, KExceptionManager kem) {
+    public CoqBackend(Stopwatch sw, Context context, Provider<ProcessBuilder> pb, FileUtil files) {
         super(sw, context);
-        this.kem = kem;
+        this.pb = pb;
+        this.files = files;
     }
 
     @Override
@@ -42,20 +46,14 @@ public class CoqBackend extends BasicBackend {
         unparser.visitNode(definition);
         String unparsedText = unparser.getResult();
 
-        FileUtil.save(options.directory.getPath() + File.separator + labelFile, unparsedText);
+        files.saveToDefinitionDirectory(labelFile, unparsedText);
 
-        final File kcoqFile = OS.current().getNativeExecutable("kcoq");
-        final String kcoq = kcoqFile.getAbsolutePath();
-        if (!kcoqFile.canExecute()) {
-            kem.registerCriticalError("Could not find kcoq exectuable for your platform, check that it is installed at "
-              +kcoq+" and is executable.");
-            return;
-        }
-        File directory = new File(definition.getMainFile()).getParentFile();
+        final String kcoq = OS.current().getNativeExecutable("kcoq");
+        File directory = definition.getMainFile().getParentFile();
 
         try {
-            Process p = new ProcessBuilder(kcoq,"syntax","--recursive",
-                    definition.getMainFile(),domainFile)
+            Process p = pb.get().command(kcoq,"syntax","--recursive",
+                    definition.getMainFile().getAbsolutePath(),domainFile)
               .inheritIO().directory(directory).start();
             int result;
             try {
@@ -66,15 +64,14 @@ public class CoqBackend extends BasicBackend {
                 return;
             }
             if (result != 0) {
-                kem.registerCriticalError("Error generating Coq syntax definition");
-                return;
+                throw KExceptionManager.criticalError("Error generating Coq syntax definition");
             }
         } catch (IOException e) {
-            kem.registerCriticalError("Error generating Coq syntax definition", e);
+            throw KExceptionManager.criticalError("Error generating Coq syntax definition", e);
         }
         try {
-            Process p = new ProcessBuilder(kcoq,"rules","--lang-name",langName,"--recursive",
-                    definition.getMainFile(),"--rules-from",labelFile,ruleFile)
+            Process p = pb.get().command(kcoq,"rules","--lang-name",langName,"--recursive",
+                    definition.getMainFile().getAbsolutePath(),"--rules-from",labelFile,ruleFile)
               .inheritIO().directory(directory).start();
             int result;
             try {
@@ -85,11 +82,10 @@ public class CoqBackend extends BasicBackend {
                 return;
             }
             if (result != 0) {
-                kem.registerCriticalError("Error generating Coq rules definition");
-                return;
+                throw KExceptionManager.criticalError("Error generating Coq rules definition");
             }
         } catch (IOException e) {
-            kem.registerCriticalError("Error generating Coq rules definition", e);
+            throw KExceptionManager.criticalError("Error generating Coq rules definition", e);
         }
     }
 

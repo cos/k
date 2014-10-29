@@ -3,7 +3,6 @@ package org.kframework.parser;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-
 import org.kframework.compile.transformers.AddEmptyLists;
 import org.kframework.compile.transformers.FlattenTerms;
 import org.kframework.compile.transformers.RemoveBrackets;
@@ -20,7 +19,7 @@ import org.kframework.kil.Term;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.loader.JavaClassesFactory;
 import org.kframework.kil.loader.ResolveVariableAttribute;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
+import org.kframework.main.GlobalOptions;
 import org.kframework.parser.concrete.disambiguate.AmbFilter;
 import org.kframework.parser.concrete.disambiguate.NormalizeASTTransformer;
 import org.kframework.parser.concrete.disambiguate.PreferAvoidFilter;
@@ -34,15 +33,37 @@ import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.Stopwatch;
 import org.kframework.utils.XmlLoader;
 import org.kframework.utils.errorsystem.KException;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.errorsystem.ParseFailedException;
 import org.kframework.utils.errorsystem.KException.ExceptionType;
 import org.kframework.utils.errorsystem.KException.KExceptionGroup;
-import org.kframework.utils.general.GlobalSettings;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.google.inject.Inject;
 import com.sun.org.apache.xerces.internal.impl.dv.util.Base64;
 
 public class ProgramLoader {
+
+    private final BinaryLoader loader;
+    private final Stopwatch sw;
+    private final KExceptionManager kem;
+    private final GlobalOptions globalOptions;
+    private final TermLoader termLoader;
+
+    @Inject
+    ProgramLoader(
+            BinaryLoader loader,
+            Stopwatch sw,
+            KExceptionManager kem,
+            GlobalOptions globalOptions,
+            TermLoader termLoader) {
+        this.loader = loader;
+        this.sw = sw;
+        this.kem = kem;
+        this.globalOptions = globalOptions;
+        this.termLoader = termLoader;
+    }
 
     /**
      * Load program file to ASTNode.
@@ -50,25 +71,22 @@ public class ProgramLoader {
      * @param kappize
      *            If true, then apply KAppModifier to AST.
      */
-    public static ASTNode loadPgmAst(String content, Source source, Boolean kappize, Sort startSymbol, Context context)
+    public ASTNode loadPgmAst(String content, Source source, Boolean kappize, Sort startSymbol, Context context)
             throws ParseFailedException {
         // ------------------------------------- import files in Stratego
         ASTNode out;
 
-        org.kframework.parser.concrete.KParser.ImportTblPgm(context.kompiled);
-        String parsed = org.kframework.parser.concrete.KParser.ParseProgramString(content, startSymbol.toString());
+        String parsed = org.kframework.parser.concrete.DefinitionLocalKParser.ParseProgramString(content, startSymbol.toString(), context.files.resolveKompiled("."));
         Document doc = XmlLoader.getXMLDoc(parsed);
 
         XmlLoader.addSource(doc.getFirstChild(), source);
         XmlLoader.reportErrors(doc);
-        JavaClassesFactory.startConstruction(context);
-        out = JavaClassesFactory.getTerm((Element) doc.getDocumentElement().getFirstChild().getNextSibling());
-        JavaClassesFactory.endConstruction();
+        out = new  JavaClassesFactory(context).getTerm((Element) doc.getDocumentElement().getFirstChild().getNextSibling());
 
         out = new PriorityFilter(context).visitNode(out);
         out = new PreferAvoidFilter(context).visitNode(out);
-        out = new NormalizeASTTransformer(context).visitNode(out);
-        out = new AmbFilter(context).visitNode(out);
+        out = new NormalizeASTTransformer(context, kem).visitNode(out);
+        out = new AmbFilter(context, kem).visitNode(out);
         out = new RemoveBrackets(context).visitNode(out);
 
         if (kappize)
@@ -77,7 +95,7 @@ public class ProgramLoader {
         return out;
     }
 
-    public static ASTNode loadPgmAst(String content, Source source, Sort startSymbol, Context context) throws ParseFailedException {
+    public ASTNode loadPgmAst(String content, Source source, Sort startSymbol, Context context) throws ParseFailedException {
         return loadPgmAst(content, source, true, startSymbol, context);
     }
 
@@ -86,9 +104,9 @@ public class ProgramLoader {
      *
      * Save it in kompiled cache under pgm.maude.
      */
-    public static Term processPgm(String content, Source source, Sort startSymbol,
+    public Term processPgm(String content, Source source, Sort startSymbol,
             Context context, ParserType whatParser) throws ParseFailedException {
-        Stopwatch.instance().printIntermediate("Importing Files");
+        sw.printIntermediate("Importing Files");
         if (!context.definedSorts.contains(startSymbol)) {
             throw new ParseFailedException(new KException(ExceptionType.ERROR, KExceptionGroup.CRITICAL,
                     "The start symbol must be declared in the definition. Found: " + startSymbol));
@@ -96,20 +114,18 @@ public class ProgramLoader {
 
         ASTNode out;
         if (whatParser == ParserType.GROUND) {
-            org.kframework.parser.concrete.KParser.ImportTblGround(context.kompiled);
-            out = DefinitionLoader.parseCmdString(new String(content), source, startSymbol, context);
+            out = termLoader.parseCmdString(new String(content), source, startSymbol, context);
             out = new RemoveBrackets(context).visitNode(out);
-            out = new AddEmptyLists(context).visitNode(out);
+            out = new AddEmptyLists(context, kem).visitNode(out);
             out = new RemoveSyntacticCasts(context).visitNode(out);
             out = new FlattenTerms(context).visitNode(out);
         } else if (whatParser == ParserType.RULES) {
-            org.kframework.parser.concrete.KParser.ImportTblRule(context.kompiled);
-            out = DefinitionLoader.parsePattern(new String(content), source, startSymbol, context);
+            out = termLoader.parsePattern(new String(content), source, startSymbol, context);
             out = new RemoveBrackets(context).visitNode(out);
-            out = new AddEmptyLists(context).visitNode(out);
+            out = new AddEmptyLists(context, kem).visitNode(out);
             out = new RemoveSyntacticCasts(context).visitNode(out);
             try {
-                out = new RuleCompilerSteps(context).compile(
+                out = new RuleCompilerSteps(context, kem).compile(
                         new Rule((Sentence) out),
                         null);
             } catch (CompilerStepDone e) {
@@ -118,32 +134,31 @@ public class ProgramLoader {
             out = ((Rule) out).getBody();
         } else if (whatParser == ParserType.BINARY) {
             try (ByteArrayInputStream in = new ByteArrayInputStream(Base64.decode(content))) {
-                out = BinaryLoader.instance().loadOrDie(Term.class, in);
+                out = loader.loadOrDie(Term.class, in);
             } catch (IOException e) {
-                GlobalSettings.kem.registerInternalError("Error reading from binary file", e);
-                throw new AssertionError("unreachable");
+                throw KExceptionManager.internalError("Error reading from binary file", e);
             }
         } else if (whatParser == ParserType.NEWPROGRAM) {
             // load the new parser
             // TODO(Radu): after the parser is in a good enough shape, replace the program parser
             // TODO(Radu): (the default one) with this branch of the 'if'
-            Grammar grammar = BinaryLoader.instance().loadOrDie(Grammar.class, context.kompiled.getAbsolutePath() + "/pgm/newParser.bin");
+            Grammar grammar = loader.loadOrDie(Grammar.class, context.files.resolveKompiled("newParser.bin"));
 
             String contentString = new String(content);
             Parser parser = new Parser(contentString);
             out = parser.parse(grammar.get(startSymbol.toString()), 0);
-            if (context.globalOptions.debug)
+            if (globalOptions.debug)
                 System.err.println("Raw: " + out + "\n");
             try {
                 out = new TreeCleanerVisitor(context).visitNode(out);
                 out = new MakeConsList(context).visitNode(out);
-                if (context.globalOptions.debug)
+                if (globalOptions.debug)
                     System.err.println("Clean: " + out + "\n");
                 out = new PriorityFilter(context).visitNode(out);
                 out = new PreferAvoidFilter(context).visitNode(out);
-                if (context.globalOptions.debug)
+                if (globalOptions.debug)
                     System.err.println("Filtered: " + out + "\n");
-                out = new AmbFilter(context).visitNode(out);
+                out = new AmbFilter(context, kem).visitNode(out);
                 out = new RemoveBrackets(context).visitNode(out);
                 out = new FlattenTerms(context).visitNode(out);
             } catch (ParseFailedException te) {
@@ -162,7 +177,7 @@ public class ProgramLoader {
             out = loadPgmAst(new String(content), source, startSymbol, context);
             out = new ResolveVariableAttribute(context).visitNode(out);
         }
-        Stopwatch.instance().printIntermediate("Parsing Program");
+        sw.printIntermediate("Parsing Program");
 
         return (Term) out;
     }

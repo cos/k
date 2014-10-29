@@ -2,26 +2,29 @@
 package org.kframework.backend.unparser;
 
 import org.kframework.kil.*;
+import org.kframework.kil.Cast.CastType;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.ParseForestTransformer;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
+import org.kframework.utils.errorsystem.ParseFailedException;
 import org.kframework.krun.ColorSetting;
-import org.kframework.parser.DefinitionLoader;
+import org.kframework.parser.TermLoader;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class AddBracketsFilter2 extends ParseForestTransformer {
 
-    public AddBracketsFilter2(Context context) throws IOException {
+    private final TermLoader loader;
+
+    public AddBracketsFilter2(Context context, TermLoader loader) {
         super("Add more brackets", context);
-        org.kframework.parser.concrete.KParser.ImportTblRule(context.kompiled);
+        this.loader = loader;
     }
 
     private Term reparsed = null;
-    public AddBracketsFilter2(Term reparsed, Context context) {
+    private AddBracketsFilter2(Term reparsed, Context context, TermLoader loader) {
         super("Add brackets to term based on parse forest", context);
+        this.loader = loader;
         this.reparsed = reparsed;
     }
 
@@ -30,6 +33,14 @@ public class AddBracketsFilter2 extends ParseForestTransformer {
 
     @Override
     public ASTNode visit(TermCons ast, Void _) throws ParseFailedException {
+        boolean tmp = atTop;
+        atTop = false;
+        ASTNode result = super.visit(ast, _);
+        return postpare((Term)result, tmp);
+    }
+
+    @Override
+    public ASTNode visit(Constant ast, Void _) throws ParseFailedException {
         boolean tmp = atTop;
         atTop = false;
         ASTNode result = super.visit(ast, _);
@@ -97,7 +108,7 @@ public class AddBracketsFilter2 extends ParseForestTransformer {
         if (reparsed != null) {
             ASTNode result = addBracketsIfNeeded(ast);
             if (atTop && result instanceof Bracket) {
-                return new Cast(result.getLocation(), result.getSource(), (Term)result, context);
+                return new Cast(result.getLocation(), result.getSource(), (Term)result, CastType.SYNTACTIC, context);
             }
             return result;
         }
@@ -105,19 +116,19 @@ public class AddBracketsFilter2 extends ParseForestTransformer {
         unparser.visitNode(ast);
         String unparsed = unparser.getResult();
         try {
-            ASTNode rule = DefinitionLoader.parsePatternAmbiguous(unparsed, context);
+            ASTNode rule = loader.parsePatternAmbiguous(unparsed, context);
             Term reparsed = ((Sentence)rule).getBody();
             if (!reparsed.contains(ast)) {
                 return replaceWithVar(ast);
             }
-            return new AddBracketsFilter2(reparsed, context).visitNode(ast);
+            return new AddBracketsFilter2(reparsed, context, loader).visitNode(ast);
         } catch (ParseFailedException e) {
             return replaceWithVar(ast);
         }
     }
 
     private Variable replaceWithVar(Term ast) {
-        Variable var = Variable.getFreshVar(((Term)ast).getSort());
+        Variable var = Variable.getAnonVar(((Term)ast).getSort());
         substitution.put(var.getName(), (Term) ast);
         return var;
     }

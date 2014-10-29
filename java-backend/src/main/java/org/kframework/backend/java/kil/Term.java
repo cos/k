@@ -12,6 +12,7 @@ import org.kframework.backend.java.symbolic.SymbolicConstraint;
 import org.kframework.backend.java.symbolic.Transformable;
 import org.kframework.backend.java.symbolic.Unifiable;
 import org.kframework.backend.java.util.Utils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -101,30 +102,7 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
      * TermContext)}.
      */
     public Term evaluate(TermContext context) {
-        return evaluate(null, context);
-    }
-
-    /**
-     * Returns a new {@code Term} instance obtained from this term by evaluating
-     * pending functions and predicates.
-     * <p>
-     * This method carries a symbolic constraint as argument for two reasons: 1)
-     * at the time when this method is called, the symbolic constraint
-     * associated with the outer constrained term which contains this term may
-     * not been properly simplified and normalized, which means the evaluation
-     * process may still need the information of this constraint when performing
-     * unification; 2) the evaluation process may create new constraints in
-     * certain cases (e.g., in test generation).
-     *
-     * @param constraint
-     *            the symbolic constraint of the {@link ConstrainedTerm} which
-     *            contains this {@code Term}
-     * @param context
-     *            the term context
-     * @return the result {@code Term} instance
-     */
-    public Term evaluate(SymbolicConstraint constraint, TermContext context) {
-        return Evaluator.evaluate(this, constraint, context);
+        return Evaluator.evaluate(this, context);
     }
 
     /**
@@ -155,17 +133,13 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
     public Term substituteAndEvaluate(Map<Variable, ? extends Term> substitution, TermContext context) {
         // TODO(AndreiS): disable the check below when proving things until this is properly fixed by Cosmin
         if (context.definition().context().krunOptions == null
-                || context.definition().context().krunOptions.experimental.prove() == null) {
+                || context.definition().context().krunOptions.experimental.prove == null) {
             // TODO(AndreiS): assert that there are not any unevaluated functions in this term
             if (substitution.isEmpty() || isGround()) {
                 return this;
             }
         }
 
-        // YilongL: comment out the slow implementation
-//        SubstitutionTransformer transformer = new BinderSubstitutionTransformer(substitution, context);
-//        transformer.getPostTransformer().addTransformer(new LocalEvaluator(context));
-//        return (Term) accept(transformer);
         SubstituteAndEvaluateTransformer transformer = new SubstituteAndEvaluateTransformer(substitution, context);
         return (Term) this.accept(transformer);
     }
@@ -236,13 +210,26 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
         return (Term) super.substituteWithBinders(variable, term, context);
     }
 
-    public Term expandPatterns(SymbolicConstraint constraint, boolean narrowing, TermContext context) {
-        return PatternExpander.expand(this, constraint, narrowing, context);
+    public Term expandPatterns(SymbolicConstraint constraint, boolean narrowing) {
+        PatternExpander expander = new PatternExpander(constraint, narrowing);
+        return (Term) this.accept(expander);
     }
 
     @Override
     public final int compareTo(Term o) {
-        return toString().compareTo(o.toString());
+        /* implement compareTo() in a way that the expensive toString() is
+         * rarely called */
+        if (hashCode() > o.hashCode()) {
+            return 1;
+        } else if (hashCode() < o.hashCode()) {
+            return -1;
+        } else if (equals(o)) {
+            return 0;
+        } else {
+            /* Note: since the equality has been checked, it's okay that the
+             * two different terms might have the same string representation */
+            return toString().compareTo(o.toString());
+        }
     }
 
     /**

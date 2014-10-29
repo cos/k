@@ -1,26 +1,17 @@
 // Copyright (c) 2014 K Team. All Rights Reserved.
 package org.kframework.krun;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.kframework.backend.unparser.OutputModes;
-import org.kframework.kil.ASTNode;
-import org.kframework.kil.Attribute;
-import org.kframework.kil.Cell;
-import org.kframework.kil.Sentence;
-import org.kframework.kil.Sort;
-import org.kframework.kil.Variable;
 import org.kframework.kil.loader.Context;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
 import org.kframework.krun.api.SearchType;
 import org.kframework.main.GlobalOptions;
-import org.kframework.parser.DefinitionLoader;
+import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.FileUtil;
-import org.kframework.utils.general.GlobalSettings;
 import org.kframework.utils.options.BaseEnumConverter;
 import org.kframework.utils.options.DefinitionLoadingOptions;
 import org.kframework.utils.options.OnOffConverter;
@@ -63,7 +54,7 @@ public final class KRunOptions {
                 return null;
             }
             if (parameters.size() > 1) {
-                GlobalSettings.kem.registerCriticalError("You can only specify $PGM on the command line itself");
+                throw KExceptionManager.criticalError("You can only specify $PGM on the command line itself");
             }
             return parameters.get(0);
         }
@@ -106,7 +97,7 @@ public final class KRunOptions {
             }
             if (!term() && pgm() != null) {
                 if (configVars.containsKey("PGM")) {
-                    GlobalSettings.kem.registerCriticalError("Cannot specify both -cPGM and a program to parse.");
+                    throw KExceptionManager.criticalError("Cannot specify both -cPGM and a program to parse.");
                 }
                 result.put("PGM", Pair.of(pgm(), parser(context)));
             }
@@ -118,10 +109,10 @@ public final class KRunOptions {
 
         public boolean term() {
             if (term && configVars.size() > 0) {
-                GlobalSettings.kem.registerCriticalError("You cannot specify both the term and the configuration variables.");
+                throw KExceptionManager.criticalError("You cannot specify both the term and the configuration variables.");
             }
             if (term && pgm() == null) {
-                GlobalSettings.kem.registerCriticalError("You must specify something to parse with the --term option.");
+                throw KExceptionManager.criticalError("You must specify something to parse with the --term option.");
             }
             return term;
         }
@@ -133,13 +124,13 @@ public final class KRunOptions {
 
     public boolean io() {
         if (io != null && io == true && search()) {
-            GlobalSettings.kem.registerCriticalError("You cannot specify both --io on and --search");
+            throw KExceptionManager.criticalError("You cannot specify both --io on and --search");
         }
         if (io != null && io == true && experimental.ltlmc() != null) {
-            GlobalSettings.kem.registerCriticalError("You cannot specify both --io on and --ltlmc");
+            throw KExceptionManager.criticalError("You cannot specify both --io on and --ltlmc");
         }
         if (io != null && io == true && experimental.debugger()) {
-            GlobalSettings.kem.registerCriticalError("You cannot specify both --io on and --debugger");
+            throw KExceptionManager.criticalError("You cannot specify both --io on and --debugger");
         }
         if (search()
                 || experimental.prove != null
@@ -161,6 +152,10 @@ public final class KRunOptions {
     public OutputModes output = OutputModes.PRETTY;
 
     public static class OutputModeConverter extends BaseEnumConverter<OutputModes> {
+
+        public OutputModeConverter(String optionName) {
+            super(optionName);
+        }
 
         @Override
         public Class<OutputModes> enumClass() {
@@ -190,7 +185,7 @@ public final class KRunOptions {
     public SearchType searchType() {
         if (search) {
             if (searchFinal || searchAll || searchOneStep || searchOneOrMoreSteps) {
-                GlobalSettings.kem.registerCriticalError("You can specify only one type of search.");
+                throw KExceptionManager.criticalError("You can specify only one type of search.");
             }
             if (depth != null) {
                 return SearchType.STAR;
@@ -198,17 +193,17 @@ public final class KRunOptions {
             return SearchType.FINAL;
         } else if (searchFinal) {
             if (searchAll || searchOneStep || searchOneOrMoreSteps) {
-                GlobalSettings.kem.registerCriticalError("You can specify only one type of search.");
+                throw KExceptionManager.criticalError("You can specify only one type of search.");
             }
             return SearchType.FINAL;
         } else if (searchAll) {
             if (searchOneStep || searchOneOrMoreSteps) {
-                GlobalSettings.kem.registerCriticalError("You can specify only one type of search.");
+                throw KExceptionManager.criticalError("You can specify only one type of search.");
             }
             return SearchType.STAR;
         } else if (searchOneStep) {
             if (searchOneOrMoreSteps) {
-                GlobalSettings.kem.registerCriticalError("You can specify only one type of search.");
+                throw KExceptionManager.criticalError("You can specify only one type of search.");
             }
             return SearchType.ONE;
         } else if (searchOneOrMoreSteps) {
@@ -219,36 +214,10 @@ public final class KRunOptions {
     }
 
     @Parameter(names="--pattern", description="Specify a term and/or side condition that the result of execution or search must match in order to succeed. Return the resulting matches as a list of substitutions. In conjunction with it you can specify other 2 options that are optional: bound (the number of desired solutions) and depth (the maximum depth of the search).")
-    private String pattern;
+    public String pattern;
 
     public static final String DEFAULT_PATTERN = "<generatedTop> B:Bag </generatedTop> [anywhere]";
-    public ASTNode pattern(Context context) throws ParseFailedException {
-        if (pattern == null && !search()) {
-            //user did not specify a pattern and it's not a search, so
-            //we should return null to indicate no pattern is needed
-            return null;
-        }
-        if (pattern != null && (experimental.prove != null || experimental.ltlmc() != null)) {
-            GlobalSettings.kem.registerCriticalError("Pattern matching is not supported by model checking or proving");
-        }
-        String patternToParse = pattern;
-        if (pattern == null) {
-            patternToParse = DEFAULT_PATTERN;
-        }
-        if (patternToParse.equals(DEFAULT_PATTERN)) {
-            Sentence s = new Sentence();
-            s.setBody(new Cell("generatedTop", new Variable("B", Sort.BAG)));
-            s.addAttribute(Attribute.ANYWHERE);
-            return s;
-        }
-        org.kframework.parser.concrete.KParser
-        .ImportTblRule(configurationCreation.definitionLoading.definition());
-        return DefinitionLoader.parsePattern(
-                patternToParse,
-                null,
-                Sort.BAG,
-                context);
-    }
+
 
     @Parameter(names="--bound", description="The number of desired solutions for search.")
     public Integer bound;
@@ -263,8 +232,6 @@ public final class KRunOptions {
     public Experimental experimental = new Experimental();
 
     public final class Experimental {
-        @Parameter(names="--log-io", description="Make the IO server create logs.", arity=1, converter=OnOffConverter.class)
-        public boolean logIO;
 
         @Parameter(names="--simulation", description="Simulation property of two programs in two semantics.",
                 listConverter=StringListConverter.class)
@@ -284,27 +251,11 @@ public final class KRunOptions {
             return debugger;
         }
 
-        @Parameter(names="--debugger-gui", description="Run an execution in debug mode with graphical interface.")
-        private boolean debuggerGui = false;
-
-        public boolean debuggerGui() {
-            if (debuggerGui && search()) {
-                throw new ParameterException("Cannot specify --search with --debug-gui. In order to search inside the debugger, use the step-all command.");
-            }
-            return debuggerGui;
-        }
-
-        @Parameter(names="--trace", description="Turn on maude trace.")
-        public boolean trace = false;
-
-        @Parameter(names="--profile", description="Turn on maude profiler.")
-        public boolean profile = false;
-
         @Parameter(names="--ltlmc", description="Specify the formula for model checking at the commandline.")
         private String ltlmc;
 
         @Parameter(names="--ltlmc-file", description="Specify the formula for model checking through a file.")
-        private File ltlmcFile;
+        private String ltlmcFile;
 
         public String ltlmc() {
             if (ltlmc != null && ltlmcFile != null) {
@@ -316,41 +267,23 @@ public final class KRunOptions {
             if (ltlmcFile == null) {
                 return null;
             }
-            if (!ltlmcFile.exists() || ltlmcFile.isDirectory()) {
-                throw new ParameterException("Cannot read from file " + ltlmcFile.getAbsolutePath());
-            }
-            return FileUtil.getFileContent(ltlmcFile.getAbsolutePath());
+            return files.loadFromWorkingDirectory(ltlmcFile);
+        }
+
+        private FileUtil files;
+
+        @Inject
+        public void setFiles(FileUtil files) {
+            this.files = files;
         }
 
         @Parameter(names="--prove", description="Prove a set of reachability rules.")
-        private File prove;
-
-        public File prove() {
-            if (prove == null) return null;
-            if (!prove.exists() || prove.isDirectory()) {
-                throw new ParameterException("File to prove does not exist.");
-            }
-            return prove;
-        }
+        public String prove;
 
         @ParametersDelegate
         public SMTOptions smt = new SMTOptions();
 
-        @Parameter(names="--smt_prelude", description="Path to the SMT prelude file.")
-        private File smtPrelude;
-
-        public File smtPrelude() {
-            if (smtPrelude == null) return null;
-            if (!smtPrelude.exists() || smtPrelude.isDirectory()) {
-                throw new ParameterException("File not found: SMT prelude " + smtPrelude + ".");
-            }
-            return smtPrelude;
-        }
-
-        @Parameter(names="--z3-executable", description="Path to the SMT prelude file.")
-        public boolean z3Executable = false;
-
         @Parameter(names="--output-file", description="Store output in the file instead of displaying it.")
-        public File outputFile;
+        public String outputFile;
     }
 }

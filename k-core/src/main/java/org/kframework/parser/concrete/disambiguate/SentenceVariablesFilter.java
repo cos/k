@@ -3,8 +3,8 @@ package org.kframework.parser.concrete.disambiguate;
 
 import org.kframework.kil.*;
 import org.kframework.kil.visitors.ParseForestTransformer;
-import org.kframework.kil.visitors.exceptions.ParseFailedException;
-import org.kframework.kil.visitors.exceptions.VariableTypeClashException;
+import org.kframework.utils.errorsystem.ParseFailedException;
+import org.kframework.utils.errorsystem.VariableTypeClashException;
 import org.kframework.utils.errorsystem.KException;
 import org.kframework.utils.errorsystem.KException.ExceptionType;
 import org.kframework.utils.errorsystem.KException.KExceptionGroup;
@@ -60,7 +60,7 @@ public class SentenceVariablesFilter extends ParseForestTransformer {
     @Override
     public ASTNode visit(Variable var, Void _) throws ParseFailedException {
         if (config) {
-            if (!var.getName().startsWith("$")) {
+            if (!(var.getName().startsWith("$") || var.isFreshConstant() || var.isFreshVariable())) {
                 String msg = "In the configuration you can only have external variables, not: '" + var.getName() + "' (starts with '$').";
                 KException kex = new KException(ExceptionType.ERROR, KExceptionGroup.CRITICAL, msg, var.getSource(), var.getLocation());
                 throw new VariableTypeClashException(kex);

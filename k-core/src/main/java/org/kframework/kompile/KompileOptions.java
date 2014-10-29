@@ -8,7 +8,8 @@ import java.util.*;
 import org.apache.commons.io.FilenameUtils;
 import org.kframework.backend.Backends;
 import org.kframework.main.GlobalOptions;
-import org.kframework.utils.general.GlobalSettings;
+import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.file.FileUtil;
 import org.kframework.utils.options.SMTOptions;
 import org.kframework.utils.options.StringListConverter;
 
@@ -29,9 +30,16 @@ public final class KompileOptions implements Serializable {
 
     public File mainDefinitionFile() {
         if (parameters == null || parameters.size() == 0) {
-            GlobalSettings.kem.registerCriticalError("You have to provide exactly one main file in order to compile.");
+            throw KExceptionManager.criticalError("You have to provide exactly one main file in order to compile.");
         }
-        return new File(parameters.get(0));
+        return files.resolveWorkingDirectory(parameters.get(0));
+    }
+
+    private transient FileUtil files;
+
+    @Inject
+    public void setFiles(FileUtil files) {
+        this.files = files;
     }
 
     @ParametersDelegate
@@ -42,7 +50,7 @@ public final class KompileOptions implements Serializable {
      * Directory in which the compiled definition should be put.
      */
     @Parameter(names={"--directory", "-d"}, description="Path to the directory in which the output resides. An output can be either a kompiled K definition or a document which depends on the type of backend. The default is the current directory.")
-    public File directory = new File(".");
+    public String directory = ".";
 
     @Parameter(names="--backend", description="Choose a backend. <backend> is one of [pdf|latex|html|maude|java|unparse|symbolic]. Each of [pdf|latex|html] generates a document from the given K definition. Either of [maude|java] creates the kompiled K definition. 'unparse' generates an unparsed version of the given K definition. 'symbolic' generates symbolic semantics. Experimental: 'doc' generates a .tex document, omitting rules unless specified.")
     public String backend = Backends.MAUDE;
@@ -109,9 +117,6 @@ public final class KompileOptions implements Serializable {
         @Parameter(names="--step", description="Name of the compilation phase after which the compilation process should stop.")
         public String step;
 
-        @Parameter(names="--lib", description="Specify extra-libraries for compile/runtime.")
-        public String lib = "";
-
         @Parameter(names="--add-top-cell", description="Add a top cell to configuration and all rules.")
         public boolean addTopCell = false;
 
@@ -123,15 +128,6 @@ public final class KompileOptions implements Serializable {
 
         @Parameter(names="--no-prelude", description="Do not include anything automatically.")
         public boolean noPrelude = false;
-
-        @Parameter(names="--symbolic-rules", listConverter=StringListConverter.class, description="Apply symbolic transformations only to rules annotated with tags from <tags> set. This only has an effect with '--backend symbolic'.")
-        public List<String> symbolicRules = Collections.emptyList();
-
-        @Parameter(names="--non-symbolic-rules", listConverter=StringListConverter.class, description="Do not apply symbolic transformations to rules annotated with tags from <tags> set. This only has an effect with '--backend symbolic'.")
-        public List<String> nonSymbolicRules = Collections.emptyList();
-
-        @Parameter(names="--kore", description="Generate kore files of a given k definition")
-        public boolean kore = false;
 
         @Parameter(names="--loud", description="Prints 'Done' at the end if all is ok.")
         public boolean loud = false;

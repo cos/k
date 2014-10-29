@@ -9,10 +9,10 @@ import java.util.Set;
 
 import org.kframework.backend.java.compile.DataStructureToLookupUpdate;
 import org.kframework.backend.java.kil.ConstrainedTerm;
-import org.kframework.backend.java.kil.Definition;
 import org.kframework.backend.java.kil.GlobalContext;
 import org.kframework.backend.java.kil.Rule;
 import org.kframework.backend.java.kil.TermContext;
+import org.kframework.compile.transformers.DataStructure2Cell;
 import org.kframework.compile.utils.CompilerStepDone;
 import org.kframework.compile.utils.ConfigurationSubstitutionVisitor;
 import org.kframework.compile.utils.MetaK;
@@ -22,6 +22,7 @@ import org.kframework.kil.loader.Context;
 import org.kframework.krun.KRunExecutionException;
 import org.kframework.krun.api.KRunProofResult;
 import org.kframework.krun.tools.Prover;
+import org.kframework.utils.errorsystem.KExceptionManager;
 
 import com.google.inject.Inject;
 
@@ -30,7 +31,7 @@ public class JavaSymbolicProver implements Prover {
     private final JavaSymbolicExecutor executor;
     private final GlobalContext globalContext;
     private final KILtoBackendJavaKILTransformer transformer;
-    private final Definition definition;
+    private final KExceptionManager kem;
 
     private final Context context;
 
@@ -40,12 +41,12 @@ public class JavaSymbolicProver implements Prover {
             GlobalContext globalContext,
             JavaSymbolicExecutor executor,
             KILtoBackendJavaKILTransformer transformer,
-            Definition definition) {
+            KExceptionManager kem) {
         this.context = context;
         this.executor = executor;
         this.globalContext = globalContext;
         this.transformer = transformer;
-        this.definition = definition;
+        this.kem = kem;
     }
 
     @Override
@@ -54,6 +55,7 @@ public class JavaSymbolicProver implements Prover {
         Map<org.kframework.kil.Term, org.kframework.kil.Term> substitution = null;
         if (cfg != null) {
             cfg = executor.run(cfg).getResult().getRawResult();
+            cfg = (org.kframework.kil.Term) (new DataStructure2Cell(context)).visitNode(cfg);
             ConfigurationSubstitutionVisitor configurationSubstitutionVisitor =
                     new ConfigurationSubstitutionVisitor(context);
             configurationSubstitutionVisitor.visitNode(cfg);
@@ -65,7 +67,7 @@ public class JavaSymbolicProver implements Prover {
             module = mod;
         }
         try {
-            module = new SpecificationCompilerSteps(context).compile(module, null);
+            module = new SpecificationCompilerSteps(context, kem).compile(module, null);
         } catch (CompilerStepDone e) {
             assert false: "dead code";
         }
@@ -79,7 +81,7 @@ public class JavaSymbolicProver implements Prover {
                 continue;
             }
 
-            Rule rule = transformer.transformRule(
+            Rule rule = transformer.transformAndEval(
                     (org.kframework.kil.Rule) mapTransformer.visitNode(moduleItem));
             Rule freshRule = rule.getFreshRule(termContext);
             rules.add(freshRule);
@@ -105,23 +107,21 @@ public class JavaSymbolicProver implements Prover {
                     kilRequires,
                     kilEnsures,
                     context);
-            Rule dummyRule = transformer.transformRule(
+            Rule dummyRule = transformer.transformAndEval(
                     (org.kframework.kil.Rule) mapTransformer.visitNode(kilDummyRule));
 
             SymbolicConstraint initialConstraint = new SymbolicConstraint(termContext);
             initialConstraint.addAll(dummyRule.requires());
             ConstrainedTerm initialTerm = new ConstrainedTerm(
-                    transformer.transformTerm(kilLeftHandSide, definition),
-                    initialConstraint,
-                    termContext);
+                    transformer.transformAndEval(kilLeftHandSide),
+                    initialConstraint);
 
             SymbolicConstraint targetConstraint = new SymbolicConstraint(termContext);
             targetConstraint.addAll(dummyRule.ensures());
             ConstrainedTerm targetTerm = new ConstrainedTerm(
                     dummyRule.leftHandSide().evaluate(termContext),
                     dummyRule.lookups().getSymbolicConstraint(termContext),
-                    targetConstraint,
-                    termContext);
+                    targetConstraint);
 
             proofResults.addAll(symbolicRewriter.proveRule(initialTerm, targetTerm, rules));
         }

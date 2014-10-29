@@ -39,7 +39,7 @@ public class JCommanderModule extends AbstractModule  {
     @Override
     protected void configure() {}
 
-    @Provides
+    @Provides @Singleton
     JCommander jcommander(Tool tool, @Options Set<Object> options, @Options Set<Class<?>> experimentalOptions, KExceptionManager kem, Stopwatch sw) {
         try {
             JCommander jc = new JCommander(options.toArray(new Object[options.size()]), args);
@@ -48,8 +48,7 @@ public class JCommanderModule extends AbstractModule  {
             sw.printIntermediate("Parse command line options");
             return jc;
         } catch (ParameterException e) {
-            kem.registerCriticalError(e.getMessage(), e);
-            throw new AssertionError("unreachable");
+            throw KExceptionManager.criticalError(e.getMessage(), e);
         }
     }
 
