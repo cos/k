@@ -28,3 +28,18 @@ trait KCollection[+This <: KCollection[This]]
     klist.foreach(f)
   }
 }
+
+trait AttributesToString {
+  self: Attributes =>
+  override def toString() = "[" +
+    (klist map {
+      case KApply(KLabel(keyName), KList(KToken(_, KString(value), _)), _) => keyName + "(" + value + ")"
+    } mkString " ") + "]"
+
+  def postfixString = if (isEmpty) "" else (" " + toString())
+}
+
+trait SortToString {
+  self: Sort =>
+  override def toString = name
+}
