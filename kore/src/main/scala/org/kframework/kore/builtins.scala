@@ -4,6 +4,8 @@ package org.kframework.kore
 
 import KORE._
 
+object StringToken extends Sort("StringToken")
+
 object KBoolean {
   object KBoolean extends Sort("Boolean")
 

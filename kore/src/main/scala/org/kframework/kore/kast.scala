@@ -137,6 +137,7 @@ object EmptyK {
 object KLabel extends ConcreteKLabel("KLabel") {
   def apply(name: String) = ConcreteKLabel(name)
   def unapply(klabel: ConcreteKLabel): Option[String] = Some(klabel.name)
+  def unapply(klabel: KLabel): Option[String] = Some(klabel.name)
 }
 
 /* Constructors for matching KORE */
