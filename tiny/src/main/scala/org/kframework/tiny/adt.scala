@@ -161,9 +161,9 @@ case class TypedKTok[T](sort: Sort, nativeValue: T, att: Att = Att()) extends KT
 case class NativeBinaryOp[T, R](val klabel: NativeBinaryOpLabel[T, R], val children: Seq[K], val att: Att = Att())
   extends KRegularApp {
   override def normalizeInner(implicit theory: Theory): K = children match {
-    case Seq(TypedKTok(s1, v1: T, _), TypedKTok(s2, v2: T, _)) if s1 == s2 =>
+    case Seq(TypedKTok(s1, v1, _), TypedKTok(s2, v2, _)) if s1 == s2 =>
       try {
-        val res = klabel.f(v1, v2)
+        val res = klabel.f(v1.asInstanceOf[T], v2.asInstanceOf[T])
         if (klabel.resSort != Sorts.Bool)
           TypedKTok(klabel.resSort, res)
         else res match {
@@ -181,7 +181,7 @@ case class NativeBinaryOp[T, R](val klabel: NativeBinaryOpLabel[T, R], val child
 case class NativeUnaryOp[T, R](val klabel: NativeUnaryOpLabel[T, R], val children: Seq[K], val att: Att = Att())
   extends KRegularApp {
   override def normalizeInner(implicit theory: Theory): K = children match {
-    case Seq(TypedKTok(s, v: T, _)) => TypedKTok(klabel.resSort, klabel.f(v))
+    case Seq(TypedKTok(s, v, _)) => TypedKTok(klabel.resSort, klabel.f(v.asInstanceOf[T]))
     case _ => this
   }
 }

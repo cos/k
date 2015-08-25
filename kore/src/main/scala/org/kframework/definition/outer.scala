@@ -2,12 +2,11 @@
 
 package org.kframework.definition
 
-import dk.brics.automaton.{SpecialOperations, BasicAutomata, RegExp, RunAutomaton}
+import dk.brics.automaton.{BasicAutomata, RegExp, RunAutomaton, SpecialOperations}
 import org.kframework.POSet
-import org.kframework.attributes.{Source, Location, Att}
-import org.kframework.kore.Unapply.{KLabel, KApply}
+import org.kframework.attributes.Att
+import org.kframework.kore.Unapply.{KApply, KLabel}
 import org.kframework.kore._
-import org.kframework.kore.KORE.KLabel
 import org.kframework.utils.errorsystem.KEMException
 
 import scala.collection.JavaConverters._
@@ -279,7 +278,7 @@ sealed trait ProductionItem extends OuterKORE
 
 // marker
 
-trait TerminalLike extends ProductionItem {
+sealed trait TerminalLike extends ProductionItem {
   def pattern: RunAutomaton
   def followPattern: RunAutomaton
   def precedePattern: RunAutomaton
