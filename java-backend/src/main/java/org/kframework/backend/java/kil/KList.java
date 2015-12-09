@@ -3,9 +3,7 @@ package org.kframework.backend.java.kil;
 
 import java.util.List;
 
-import org.kframework.backend.java.symbolic.Matcher;
 import org.kframework.backend.java.symbolic.Transformer;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.kil.ASTNode;
 
@@ -27,7 +25,7 @@ import com.google.common.collect.ImmutableList;
  *
  * @author AndreiS
  */
-public class KList extends KCollection {
+public class KList extends KCollection implements org.kframework.kore.KList {
 
     private static final String SEPARATOR_NAME = ",, ";
     private static final String IDENTITY_NAME = "." + Kind.KLIST;
@@ -145,16 +143,6 @@ public class KList extends KCollection {
     }
 
     @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
-    }
-
-    @Override
     public void accept(Visitor visitor) {
         visitor.visit(this);
     }
@@ -188,13 +176,14 @@ public class KList extends KCollection {
                 contentsBuilder.addAll(kList.contents);
                 frame = kList.frame;
             } else if (term instanceof Variable) {
-                assert term.sort().equals(Sort.KLIST) || term.kind().equals(Kind.KITEM) || term.kind().equals(Kind.K);
                 if (term.sort().equals(Sort.KLIST)) {
                     frame = (Variable) term;
                 } else {
                     contentsBuilder.add(term);
                 }
-            } else if (term.kind().equals(Kind.KITEM) || term.kind().equals(Kind.K)) {
+            } else if (term.kind() == Kind.KITEM
+                    || term.kind() == Kind.K
+                    || term.kind == Kind.CELL_COLLECTION) {
                 contentsBuilder.add(term);
             } else if (term instanceof KItemProjection) {
                 // TODO(AndreiS): fix KItem projection

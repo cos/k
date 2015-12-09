@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Copyright (c) 2013-2014 K Team. All Rights Reserved. -->
+<!-- Copyright (c) 2013-2015 K Team. All Rights Reserved. -->
 
 <!-- Expected to be called from k/1_k, with the command
 
@@ -11,6 +11,6 @@
   <include file="../2_imp/tests/config.xml" directory="2_imp" />
   <include file="../3_lambda++/tests/config.xml" directory="3_lambda++" />
   <include file="../4_imp++/tests/config.xml" directory="4_imp++" />
-  <include file="../5_types/tests/config.xml" directory="5_types" />
+<!--  <include file="../5_types/tests/config.xml" directory="5_types" />-->
 </tests>
 

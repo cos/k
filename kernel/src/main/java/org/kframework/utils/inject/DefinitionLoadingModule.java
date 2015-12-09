@@ -1,17 +1,18 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
 package org.kframework.utils.inject;
 
-import java.io.File;
-import java.io.FilenameFilter;
-import java.util.Map;
-
+import com.google.inject.AbstractModule;
+import com.google.inject.Provider;
+import com.google.inject.Provides;
 import org.kframework.kil.Definition;
 import org.kframework.kil.loader.Context;
+import org.kframework.kompile.CompiledDefinition;
 import org.kframework.kompile.KompileOptions;
+import org.kframework.krun.KRunOptions;
 import org.kframework.main.GlobalOptions;
-import org.kframework.main.Tool;
 import org.kframework.utils.BinaryLoader;
 import org.kframework.utils.Stopwatch;
+import org.kframework.utils.errorsystem.KEMException;
 import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.DefinitionDir;
 import org.kframework.utils.file.Environment;
@@ -20,9 +21,9 @@ import org.kframework.utils.file.KompiledDir;
 import org.kframework.utils.file.WorkingDir;
 import org.kframework.utils.options.DefinitionLoadingOptions;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.Provides;
-import com.google.inject.Singleton;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.util.Map;
 
 public class DefinitionLoadingModule extends AbstractModule {
 
@@ -30,16 +31,18 @@ public class DefinitionLoadingModule extends AbstractModule {
     protected void configure() {
     }
 
-    @Provides @Singleton
+    @Provides @DefinitionScoped
     Context context(
             BinaryLoader loader,
             DefinitionLoadingOptions options,
             GlobalOptions global,
             Stopwatch sw,
             KExceptionManager kem,
-            FileUtil files) {
+            FileUtil files,
+            KRunOptions krunOptions) {
         Context context = loader.loadOrDie(Context.class, files.resolveKompiled("context.bin"));
-        context.files = files;
+        context.globalOptions = global;
+        context.krunOptions = krunOptions;
 
         sw.printIntermediate("Loading serialized context");
 
@@ -47,19 +50,33 @@ public class DefinitionLoadingModule extends AbstractModule {
         return context;
     }
 
-    @Provides
-    Definition definition(Tool tool, BinaryLoader loader, FileUtil files) {
-        if (tool == Tool.KDOC) {
-            return loader.loadOrDie(Definition.class, files.resolveKompiled("definition-concrete.bin"));
-        }
+    @Provides @DefinitionScoped @Concrete
+    Definition concreteDefinition(BinaryLoader loader, FileUtil files) {
+        return loader.loadOrDie(Definition.class, files.resolveKompiled("definition-concrete.bin"));
+    }
+
+    @Provides @DefinitionScoped
+    Definition definition(BinaryLoader loader, FileUtil files) {
         return loader.loadOrDie(Definition.class, files.resolveKompiled("definition.bin"));
     }
 
 
+    @Provides @DefinitionScoped
+    CompiledDefinition koreDefinition(BinaryLoader loader, FileUtil files) {
+        return loader.loadOrDie(CompiledDefinition.class, files.resolveKompiled("compiled.bin"));
+    }
+
+
     @Provides
-    KompileOptions kompileOptions(Context context, FileUtil files) {
-        context.kompileOptions.setFiles(files);
-        return context.kompileOptions;
+    KompileOptions kompileOptions(Provider<Context> context, Provider<CompiledDefinition> compiledDef, Provider<FileUtil> files) {
+        // a hack, but it's good enough for what we need from it, which is a temporary solution
+        if (files.get().resolveKompiled("compiled.bin").exists()) {
+            KompileOptions res = compiledDef.get().kompileOptions;
+            return res;
+        } else {
+            Context res = context.get();
+            return res.kompileOptions;
+        }
     }
 
     @Provides @KompiledDir
@@ -75,7 +92,7 @@ public class DefinitionLoadingModule extends AbstractModule {
         for (int i = 0; i < dirs.length; i++) {
             if (dirs[i].getAbsolutePath().endsWith("-kompiled")) {
                 if (directory != null) {
-                    throw KExceptionManager.criticalError("Multiple compiled definitions found in the "
+                    throw KEMException.criticalError("Multiple compiled definitions found in the "
                             + "current working directory: " + directory.getAbsolutePath() + " and " +
                             dirs[i].getAbsolutePath());
                 } else {
@@ -85,11 +102,11 @@ public class DefinitionLoadingModule extends AbstractModule {
         }
 
         if (directory == null) {
-            throw KExceptionManager.criticalError("Could not find a compiled definition. " +
+            throw KEMException.criticalError("Could not find a compiled definition. " +
                     "Use --directory to specify one.");
         }
         if (!directory.isDirectory()) {
-            throw KExceptionManager.criticalError("Does not exist or not a directory: " + directory.getAbsolutePath());
+            throw KEMException.criticalError("Does not exist or not a directory: " + directory.getAbsolutePath());
         }
         return directory;
     }
@@ -117,7 +134,7 @@ public class DefinitionLoadingModule extends AbstractModule {
             }
         }
         if (!directory.isDirectory()) {
-            throw KExceptionManager.criticalError("Does not exist or not a directory: " + directory.getAbsolutePath());
+            throw KEMException.criticalError("Does not exist or not a directory: " + directory.getAbsolutePath());
         }
         return directory;
     }

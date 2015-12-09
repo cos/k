@@ -35,9 +35,14 @@ public class MacroExpander extends CopyOnWriteTransformer {
     }
 
     public Definition processDefinition() {
-        Definition processedDefinition = new Definition(definition.context(), kem, definition.indexingData);
+        Definition definition = context.definition();
+        Definition processedDefinition = new Definition(
+                definition.definitionData(),
+                kem,
+                definition.indexingData,
+                definition.ruleTable,
+                definition.automaton);
         processedDefinition.addKLabelCollection(definition.kLabels());
-        processedDefinition.addFrozenKLabelCollection(definition.frozenKLabels());
         for (Rule rule : definition.rules()) {
             processedDefinition.addRule(processRule(rule));
         }
@@ -68,8 +73,8 @@ public class MacroExpander extends CopyOnWriteTransformer {
         for (Term conditionItem : rule.ensures()) {
             processedEnsures.add(processTerm(conditionItem));
         }
-        UninterpretedConstraint processedLookups
-            = (UninterpretedConstraint) expandMacro(rule.lookups());
+        ConjunctiveFormula processedLookups
+            = (ConjunctiveFormula) processTerm(rule.lookups());
 
         Map<CellLabel, Term> processedLhsOfReadCell = null;
         Map<CellLabel, Term> processedRhsOfWriteCell = null;
@@ -99,7 +104,7 @@ public class MacroExpander extends CopyOnWriteTransformer {
                 rule.cellsToCopy(),
                 rule.matchingInstructions(),
                 rule,
-                context);
+                rule.globalContext());
     }
 
     public Term processTerm(Term term) {
@@ -116,6 +121,7 @@ public class MacroExpander extends CopyOnWriteTransformer {
      */
     private JavaSymbolicObject expandMacro(JavaSymbolicObject node) {
         JavaSymbolicObject expandedNode = (JavaSymbolicObject) node.accept(this);
+        // while some macro rule has applied, making the term references different
         while (node != expandedNode) {
             node = expandedNode;
             expandedNode = (JavaSymbolicObject) node.accept(this);
@@ -131,10 +137,17 @@ public class MacroExpander extends CopyOnWriteTransformer {
     }
 
     private Term applyMacroRule(Term term) {
-        for (Rule rule : definition.macros()) {
-            Map<Variable, Term> subst = NonACPatternMatcher.match(term, rule, context);
-            if (subst != null) {
-                return rule.rightHandSide().substituteAndEvaluate(subst, context);
+        for (Rule rule : context.definition().macros()) {
+            Map<Variable, Term> solution;
+            List<Substitution<Variable, Term>> matches = PatternMatcher.match(term, rule, context);
+            if (matches.isEmpty()) {
+                continue;
+            } else {
+                assert matches.size() == 1 : "unexpected non-deterministic macro " + rule;
+                solution = matches.get(0);
+            }
+            if (solution != null) {
+                return rule.rightHandSide().substituteAndEvaluate(solution, context);
             }
         }
 

@@ -3,13 +3,15 @@ package org.kframework.backend.java.builtins;
 
 import org.kframework.backend.java.kil.BuiltinList;
 import org.kframework.backend.java.kil.Sort;
+import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.kil.Token;
 import org.kframework.backend.java.symbolic.Transformer;
 import org.kframework.backend.java.symbolic.Visitor;
-import org.kframework.backend.java.util.Utils;
+import org.kframework.backend.java.util.Constants;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Attribute;
-import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.errorsystem.KEMException;
+
 import java.math.BigInteger;
 import java.util.List;
 
@@ -124,8 +126,8 @@ public abstract class BitVector<T extends Number> extends Token {
     @Override
     protected int computeHash() {
         int hashCode = 1;
-        hashCode = hashCode * Utils.HASH_PRIME + value.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + bitwidth;
+        hashCode = hashCode * Constants.HASH_PRIME + value.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + bitwidth;
         return hashCode;
     }
 
@@ -143,18 +145,18 @@ public abstract class BitVector<T extends Number> extends Token {
     public abstract BitVector<T> sub(BitVector<T> bitVector);
     public abstract BitVector<T> mul(BitVector<T> bitVector);
 
-    public abstract BuiltinList sdiv(BitVector<T> bitVector);
-    public abstract BuiltinList srem(BitVector<T> bitVector);
+    public abstract BuiltinList sdiv(BitVector<T> bitVector, TermContext context);
+    public abstract BuiltinList srem(BitVector<T> bitVector, TermContext context);
 
     public abstract BitVector<T> udiv(BitVector<T> bitVector);
     public abstract BitVector<T> urem(BitVector<T> bitVector);
 
-    public abstract BuiltinList sadd(BitVector<T> bitVector);
-    public abstract BuiltinList uadd(BitVector<T> bitVector);
-    public abstract BuiltinList ssub(BitVector<T> bitVector);
-    public abstract BuiltinList usub(BitVector<T> bitVector);
-    public abstract BuiltinList smul(BitVector<T> bitVector);
-    public abstract BuiltinList umul(BitVector<T> bitVector);
+    public abstract BuiltinList sadd(BitVector<T> bitVector, TermContext context);
+    public abstract BuiltinList uadd(BitVector<T> bitVector, TermContext context);
+    public abstract BuiltinList ssub(BitVector<T> bitVector, TermContext context);
+    public abstract BuiltinList usub(BitVector<T> bitVector, TermContext context);
+    public abstract BuiltinList smul(BitVector<T> bitVector, TermContext context);
+    public abstract BuiltinList umul(BitVector<T> bitVector, TermContext context);
 
     public abstract BitVector<T> shl(IntToken intToken);
     public abstract BitVector<T> ashr(IntToken intToken);
@@ -205,7 +207,7 @@ public abstract class BitVector<T extends Number> extends Token {
     public static int getBitwidthOrDie(ASTNode t) {
         Integer bitwidth = getBitwidth(t);
         if (bitwidth == null) {
-            throw KExceptionManager.criticalError("Expected machine integer variable to declare a bitwidth." +
+            throw KEMException.criticalError("Expected machine integer variable to declare a bitwidth." +
                     " For example, M:MInt{bitwidth(32)} for a 32-bit integer.");
         }
         return bitwidth;
@@ -219,7 +221,7 @@ public abstract class BitVector<T extends Number> extends Token {
         try {
             return Integer.parseInt(bitwidth);
         } catch (NumberFormatException e) {
-            throw KExceptionManager.criticalError("Expected variable attribute 'bitwidth' to " +
+            throw KEMException.criticalError("Expected variable attribute 'bitwidth' to " +
                     "be an integer, found: " + t.getAttribute("bitwidth"), e);
         }
     }

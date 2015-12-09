@@ -1,28 +1,35 @@
 // Copyright (c) 2012-2015 K Team. All Rights Reserved.
 package org.kframework.utils.file;
 
+import com.google.inject.Inject;
+import com.google.inject.Provider;
+import com.google.inject.util.Providers;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.kframework.main.GlobalOptions;
-import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.errorsystem.KEMException;
+import org.kframework.utils.inject.RequestScoped;
 
-import com.google.inject.Inject;
-import com.google.inject.Provider;
-import com.google.inject.Singleton;
-
-import java.io.*;
+import javax.annotation.Nullable;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.io.Reader;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
-import javax.annotation.Nullable;
-
-@Singleton
+@RequestScoped
 public class FileUtil {
 
     private final File tempDir;
@@ -30,6 +37,7 @@ public class FileUtil {
     private final File workingDir;
     private final Provider<File> definitionDir;
     private final GlobalOptions options;
+    private final Map<String, String> env;
 
     @Inject
     public FileUtil(
@@ -37,12 +45,30 @@ public class FileUtil {
             @DefinitionDir @Nullable Provider<File> definitionDir,
             @WorkingDir File workingDir,
             @KompiledDir @Nullable Provider<File> kompiledDir,
-            GlobalOptions options) {
+            GlobalOptions options,
+            @Environment Map<String, String> env) {
         this.tempDir = tempDir;
         this.definitionDir = definitionDir;
         this.workingDir = workingDir;
         this.kompiledDir = kompiledDir;
         this.options = options;
+        this.env = env;
+    }
+
+    public static FileUtil testFileUtil() {
+        File workingDir = new File(".");
+        return new FileUtil(workingDir, Providers.of(workingDir), workingDir, Providers.of(workingDir), new GlobalOptions(), System.getenv());
+    }
+
+    public ProcessBuilder getProcessBuilder() {
+        ProcessBuilder pb = new ProcessBuilder().directory(workingDir);
+        pb.environment().clear();
+        pb.environment().putAll(env);
+        return pb;
+    }
+
+    public Map<String, String> getEnv() {
+        return env;
     }
 
     public void deleteTempDir() {
@@ -50,7 +76,7 @@ public class FileUtil {
             try {
                 FileUtils.deleteDirectory(tempDir);
             } catch (IOException e) {
-                throw KExceptionManager.criticalError("Failed to delete temporary directory", e);
+                throw KEMException.criticalError("Failed to delete temporary directory", e);
             }
         }
     }
@@ -152,7 +178,7 @@ public class FileUtil {
         try {
             FileUtils.copyFile(from, to);
         } catch (IOException e) {
-            throw KExceptionManager.criticalError("Could not copy " + from + " to " + to, e);
+            throw KEMException.criticalError("Could not copy " + from + " to " + to, e);
         }
     }
 
@@ -160,7 +186,7 @@ public class FileUtil {
         try {
             FileUtils.copyFileToDirectory(from, toDir);
         } catch (IOException e) {
-            throw KExceptionManager.criticalError("Could not copy " + from + " to directory " + toDir, e);
+            throw KEMException.criticalError("Could not copy " + from + " to directory " + toDir, e);
         }
     }
 
@@ -168,19 +194,19 @@ public class FileUtil {
         try {
             File dir = file.getAbsoluteFile().getParentFile();
             if (!dir.exists() && !dir.mkdirs()) {
-                throw KExceptionManager.criticalError("Could not create directory " + dir);
+                throw KEMException.criticalError("Could not create directory " + dir);
             }
             FileUtils.writeStringToFile(file, content);
         } catch (IOException e) {
-            throw KExceptionManager.criticalError("Could not write to file " + file.getAbsolutePath(), e);
+            throw KEMException.criticalError("Could not write to file " + file.getAbsolutePath(), e);
         }
     }
 
-    private static String load(File file) {
+    public static String load(File file) {
         try {
             return FileUtils.readFileToString(file);
         } catch (IOException e) {
-            throw KExceptionManager.criticalError("Could not read from file " + file.getAbsolutePath(), e);
+            throw KEMException.criticalError("Could not read from file " + file.getAbsolutePath(), e);
         }
     }
 
@@ -190,7 +216,7 @@ public class FileUtil {
             PipedInputStream in = new PipedInputStream(out);
             return Pair.of(in, out);
         } catch (IOException e) {
-            throw KExceptionManager.internalError("Error creating input/output pipe", e);
+            throw KEMException.internalError("Error creating input/output pipe", e);
         }
     }
 
@@ -200,7 +226,7 @@ public class FileUtil {
             PipedOutputStream out = new PipedOutputStream(in);
             return Pair.of(out, in);
         } catch (IOException e) {
-            throw KExceptionManager.internalError("Error creating input/output pipe", e);
+            throw KEMException.internalError("Error creating input/output pipe", e);
         }
     }
 
@@ -208,7 +234,7 @@ public class FileUtil {
         try {
             return IOUtils.toString(reader);
         } catch (IOException e) {
-            throw KExceptionManager.internalError("Error reading from " + reader, e);
+            throw KEMException.internalError("Error reading from " + reader, e);
         }
     }
 
@@ -217,7 +243,7 @@ public class FileUtil {
         try {
             return new FileReader(f);
         } catch (FileNotFoundException e) {
-            throw KExceptionManager.criticalError("Could not read from file " + f.getAbsolutePath(), e);
+            throw KEMException.criticalError("Could not read from file " + f.getAbsolutePath(), e);
         }
     }
 }

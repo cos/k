@@ -1,17 +1,18 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.symbolic;
 
+import org.kframework.backend.java.kil.Definition;
 import org.kframework.backend.java.kil.KLabelConstant;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.util.ImpureFunctionException;
 import org.kframework.kil.Attribute;
-import org.kframework.kil.Production;
-import org.kframework.kil.loader.Context;
-import org.kframework.main.Tool;
+import org.kframework.kil.Attributes;
+import org.kframework.utils.errorsystem.KEMException;
 import org.kframework.utils.errorsystem.KException;
 import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.inject.Builtins;
+import org.kframework.utils.inject.RequestScoped;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -30,13 +31,14 @@ import com.google.inject.Provider;
  *
  * @author AndreiS
  */
+@RequestScoped
 public class BuiltinFunction {
 
     /**
      * Map of {@link KLabelConstant} representation of builtin (hooked) operations to
      * {@link Method} representation of Java implementation of said operations.
      */
-    private Map<KLabelConstant, MethodHandle> table = new HashMap<>();
+    private final Map<KLabelConstant, MethodHandle> table = new HashMap<>();
 
 
     /**
@@ -51,7 +53,7 @@ public class BuiltinFunction {
      * @see org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer#evaluateRule(org.kframework.backend.java.kil.Rule, org.kframework.backend.java.kil.Definition)
      */
     @Inject
-    public BuiltinFunction(Context context, @Builtins Map<String, Provider<MethodHandle>> hookProvider, KExceptionManager kem, Tool tool) {
+    public BuiltinFunction(Definition definition, @Builtins Map<String, Provider<MethodHandle>> hookProvider, KExceptionManager kem, Stage stage) {
         MethodHandles.Lookup lookup = MethodHandles.lookup();
         MethodType hookType = MethodType.methodType(Term.class, Object[].class);
         MethodHandle throwImpureExceptionHandle;
@@ -59,33 +61,28 @@ public class BuiltinFunction {
             throwImpureExceptionHandle = lookup.findStatic(BuiltinFunction.class,
                     "throwImpureException", hookType);
         } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw KExceptionManager.internalError("Failed to load partial evaluation hook implementation", e);
+            throw KEMException.internalError("Failed to load partial evaluation hook implementation", e);
         }
-        for (String label : context.klabels.keySet()) {
-            for (Production production : context.productionsOf(label)) {
-                if (production.getKLabel().equals(label) // make sure the label is a Klabel
-                        && production.containsAttribute(Attribute.HOOK_KEY)) {
-                    String hookAttribute = production.getAttribute(Attribute.HOOK_KEY);
-                    String hookPrefix = hookAttribute.substring(0, hookAttribute.indexOf(":"));
-                    /*
-                     * exclude hook from evaluation during compilation if the hook is dynamic
-                     * in nature (is related to I/O or to meta properties).
-                     * */
-                    if (tool == Tool.KOMPILE && production.containsAttribute(Attribute.IMPURE_KEY)) {
-                        table.put(KLabelConstant.of(label, context), throwImpureExceptionHandle);
-                        continue;
-                    }
-
-                    if (!hookProvider.containsKey(hookAttribute)) {
-                        kem.register(new KException(
-                                KException.ExceptionType.HIDDENWARNING,
-                                KException.KExceptionGroup.CRITICAL, "missing entry for hook " + hookAttribute,
-                                production.getSource(), production.getLocation()));
-                        continue;
-                    }
-
-                    table.put(KLabelConstant.of(label, context), hookProvider.get(hookAttribute).get());
+        for (Map.Entry<String, Attributes> entry : definition.kLabelAttributes().entrySet()) {
+            String hookAttribute = entry.getValue().getAttr(Attribute.HOOK_KEY);
+            if (hookAttribute != null) {
+                /*
+                 * exclude hook from evaluation during compilation if the hook is dynamic
+                 * in nature (is related to I/O or to meta properties).
+                 * */
+                if (stage == Stage.INITIALIZING && entry.getValue().getAttr(Attribute.IMPURE_KEY) != null) {
+                    table.put(KLabelConstant.of(entry.getKey(), definition), throwImpureExceptionHandle);
+                    continue;
                 }
+
+                if (!hookProvider.containsKey(hookAttribute)) {
+                    kem.register(new KException(
+                            KException.ExceptionType.HIDDENWARNING,
+                            KException.KExceptionGroup.CRITICAL, "missing entry for hook " + hookAttribute));
+                    continue;
+                }
+
+                table.put(KLabelConstant.of(entry.getKey(), definition), hookProvider.get(hookAttribute).get());
             }
         }
     }
@@ -116,8 +113,7 @@ public class BuiltinFunction {
         // TODO(YilongL): is reflection/exception really the best way to
         // deal with builtin functions? builtin functions are supposed to be
         // super-fast...
-        Term t = (Term) table.get(label).invokeWithArguments(args);
-        return t;
+        return (Term) table.get(label).invokeWithArguments(args);
     }
 
     /**

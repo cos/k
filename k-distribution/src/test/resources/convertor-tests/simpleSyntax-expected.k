@@ -1,5 +1,4 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
-
-module TEST [location(startLine(#token(Int,"3")),startColumn(#token(Int,"1")),endLine(#token(Int,"5")),endColumn(#token(Int,"9")))]
-  syntax Foo [location(startLine(#token(Int,"4")),startColumn(#token(Int,"3")),endLine(#token(Int,"4")),endColumn(#token(Int,"12")))]
+module TEST [Location(#token("3",Int),#token("1",Int),#token("5",Int),#token("9",Int)) Source(#token("src/test/resources/convertor-tests/simpleSyntax.k",KString))]
+  syntax Foo [Location(#token("4",Int),#token("3",Int),#token("4",Int),#token("12",Int)) Source(#token("src/test/resources/convertor-tests/simpleSyntax.k",KString))]
 endmodule

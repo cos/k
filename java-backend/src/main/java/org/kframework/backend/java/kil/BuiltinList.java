@@ -1,25 +1,23 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.kil;
 
-import org.kframework.backend.java.symbolic.Matcher;
-import org.kframework.backend.java.symbolic.Transformer;
-import org.kframework.backend.java.symbolic.Unifier;
-import org.kframework.backend.java.symbolic.Visitor;
-import org.kframework.backend.java.util.Utils;
-import org.kframework.kil.ASTNode;
-import org.kframework.kil.DataStructureSort;
-import org.kframework.utils.errorsystem.KExceptionManager;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-
-import org.apache.commons.collections4.ListUtils;
-
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.commons.collections4.ListUtils;
+import org.kframework.backend.java.symbolic.Transformer;
+import org.kframework.backend.java.symbolic.Visitor;
+import org.kframework.backend.java.util.Constants;
+import org.kframework.kil.ASTNode;
+import org.kframework.kil.DataStructureSort;
+import org.kframework.utils.errorsystem.KEMException;
+import org.kframework.utils.errorsystem.KExceptionManager;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 
 /**
@@ -27,11 +25,9 @@ import com.google.common.collect.Lists;
  *
  * @author: YilongL
  */
-public class BuiltinList extends Collection {
+public class BuiltinList extends Collection implements KItemCollection {
 
-    public static final BuiltinList EMPTY_LIST = (BuiltinList) builder().build();
-
-    private static enum BaseTermType {
+    private enum BaseTermType {
         VARIABLE, FUNCTION, PATTERN, LIST;
     }
 
@@ -41,6 +37,8 @@ public class BuiltinList extends Collection {
     private final ImmutableList<BaseTermType> baseTermTypes;
     private final ImmutableList<Variable> listVariables;
 
+    private final GlobalContext global;
+
     /**
      * Private efficient constructor used by {@link BuiltinList.Builder}.
      */
@@ -49,14 +47,15 @@ public class BuiltinList extends Collection {
             ImmutableList<Term> baseTerms,
             ImmutableList<Term> elementsRight,
             ImmutableList<BaseTermType> baseTermTypes,
-            ImmutableList<Variable> listVariables
-            ) {
+            ImmutableList<Variable> listVariables,
+            GlobalContext global) {
         super(computeFrame(baseTerms), Kind.KITEM);
         this.elementsLeft = elementsLeft;
         this.elementsRight = elementsRight;
         this.baseTerms = baseTerms;
         this.baseTermTypes = baseTermTypes;
         this.listVariables = listVariables;
+        this.global = global;
     }
 
     private static Variable computeFrame(List<Term> baseTerms) {
@@ -67,12 +66,17 @@ public class BuiltinList extends Collection {
         }
     }
 
-    private BuiltinList(ImmutableList<Term> elementsLeft) {
-        this(elementsLeft, ImmutableList.<Term>of(), ImmutableList.<Term>of(), ImmutableList.<BaseTermType>of(), ImmutableList.<Variable>of());
+    private BuiltinList(ImmutableList<Term> elementsLeft, GlobalContext global) {
+        this(elementsLeft,
+             ImmutableList.<Term>of(),
+             ImmutableList.<Term>of(),
+             ImmutableList.<BaseTermType>of(),
+             ImmutableList.<Variable>of(),
+             global);
     }
 
-    public static Term concatenate(Term... lists) {
-        Builder builder = new Builder();
+    public static Term concatenate(GlobalContext global, Term... lists) {
+        Builder builder = new Builder(global);
         builder.concatenate(lists);
         return builder.build();
     }
@@ -164,9 +168,9 @@ public class BuiltinList extends Collection {
     @Override
     protected int computeHash() {
         int hashCode = 1;
-        hashCode = hashCode * Utils.HASH_PRIME + elementsLeft.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + elementsRight.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + baseTerms.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + elementsLeft.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + elementsRight.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + baseTerms.hashCode();
         return hashCode;
     }
 
@@ -180,16 +184,6 @@ public class BuiltinList extends Collection {
             }
         }
         return false;
-    }
-
-    @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
     }
 
     @Override
@@ -234,21 +228,20 @@ public class BuiltinList extends Collection {
     }
 
     @Override
-    protected List<Term> getKComponents(TermContext context) {
-        DataStructureSort sort = context.definition().context().dataStructureSortOf(
-                sort().toFrontEnd());
+    public List<Term> getKComponents() {
+        DataStructureSort sort = global.getDefinition().dataStructureSortOf(sort());
 
         ArrayList<Term> components = Lists.newArrayList();
         Consumer<Term> addElementToComponents = element ->
                 components.add(KItem.of(
-                        KLabelConstant.of(sort.elementLabel(), context.definition().context()),
+                        KLabelConstant.of(sort.elementLabel(), global.getDefinition()),
                         KList.singleton(element),
-                        context, element.getSource(), element.getLocation()));
+                        global, element.getSource(), element.getLocation()));
 
         elementsLeft.stream().forEach(addElementToComponents);
         for (Term term : baseTerms) {
             if (term instanceof BuiltinList) {
-                components.addAll(((BuiltinList) term).getKComponents(context));
+                components.addAll(((BuiltinList) term).getKComponents());
             } else {
                 components.add(term);
             }
@@ -258,8 +251,13 @@ public class BuiltinList extends Collection {
         return components;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    @Override
+    public GlobalContext globalContext() {
+        return global;
+    }
+
+    public static Builder builder(GlobalContext global) {
+        return new Builder(global);
     }
 
     public static class BaseTerm {
@@ -310,8 +308,8 @@ public class BuiltinList extends Collection {
 
         public int hashCode() {
             int hashCode = 1;
-            hashCode = hashCode * Utils.HASH_PRIME + term.hashCode();
-            hashCode = hashCode * Utils.HASH_PRIME + type.hashCode();
+            hashCode = hashCode * Constants.HASH_PRIME + term.hashCode();
+            hashCode = hashCode * Constants.HASH_PRIME + type.hashCode();
             return hashCode;
         }
     }
@@ -352,6 +350,11 @@ public class BuiltinList extends Collection {
         private final ImmutableList.Builder<Term> elementsRightBuilder = new ImmutableList.Builder<>();
         private final ImmutableList.Builder<BaseTermType> baseTermTypesBuilder = new ImmutableList.Builder<>();
         private final ImmutableList.Builder<Variable> listVariablesBuilder = new ImmutableList.Builder<>();
+        private final GlobalContext global;
+
+        public Builder(GlobalContext global) {
+            this.global = global;
+        }
 
         /**
          * Appends the specified term as a list item, namely
@@ -391,7 +394,7 @@ public class BuiltinList extends Collection {
                 baseTermTypesBuilder.add(BaseTermType.VARIABLE);
                 listVariablesBuilder.add((Variable) term);
             } else {
-                throw KExceptionManager.criticalError("unexpected concatenated term" + term);
+                throw KExceptionManager.criticalError("unexpected concatenated term" + term, term);
             }
         }
 
@@ -406,7 +409,7 @@ public class BuiltinList extends Collection {
          */
         public void concatenate(Term term) {
             if (!term.sort().equals(Sort.LIST)) {
-                throw KExceptionManager.criticalError("unexpected sort "
+                throw KEMException.criticalError("unexpected sort "
                         + term.sort() + " of concatenated term " + term
                         + "; expected " + Sort.LIST);
             }
@@ -429,7 +432,9 @@ public class BuiltinList extends Collection {
             } else if (status == BuilderStatus.BASE_TERMS) {
                 if (!(term instanceof BuiltinList)) {
                     if (!pendingElements.isEmpty()) {
-                        addConcatTerm(new BuiltinList(ImmutableList.copyOf(pendingElements)));
+                        addConcatTerm(new BuiltinList(
+                                ImmutableList.copyOf(pendingElements),
+                                global));
                         pendingElements.clear();
                     }
                     addConcatTerm(term);
@@ -440,7 +445,9 @@ public class BuiltinList extends Collection {
                     } else {
                         pendingElements.addAll(list.elementsLeft);
                         if (!pendingElements.isEmpty()) {
-                            addConcatTerm(new BuiltinList(ImmutableList.copyOf(pendingElements)));
+                            addConcatTerm(new BuiltinList(
+                                    ImmutableList.copyOf(pendingElements),
+                                    global));
                             pendingElements.clear();
                         }
                         addConcatTerms(list.baseTerms);
@@ -450,7 +457,7 @@ public class BuiltinList extends Collection {
             } else {
                 throw KExceptionManager.criticalError(
                         "the builder is not allowed to concatencate list terms in "
-                        + BuilderStatus.ELEMENTS_RIGHT);
+                        + BuilderStatus.ELEMENTS_RIGHT, term);
             }
         }
 
@@ -483,7 +490,8 @@ public class BuiltinList extends Collection {
                     baseTermsBuilder.build(),
                     elementsRightBuilder.build(),
                     baseTermTypesBuilder.build(),
-                    listVariablesBuilder.build());
+                    listVariablesBuilder.build(),
+                    global);
             return builtinList.baseTerms().size() == 1 && builtinList.concreteSize() == 0 ?
                    builtinList.baseTerms().get(0) :
                    builtinList;

@@ -15,16 +15,6 @@ import org.kframework.kil.ASTNode;
  */
 public class LocalTransformer implements Transformer {
 
-    protected final TermContext context;
-
-    public LocalTransformer() {
-        this.context = null;
-    }
-
-    public LocalTransformer(TermContext context) {
-        this.context = context;
-    }
-
     @Override
     public String getName() {
         return "Identity Transformer";
@@ -145,8 +135,13 @@ public class LocalTransformer implements Transformer {
     }
 
     @Override
-    public ASTNode transform(SymbolicConstraint symbolicConstraint) {
-        return transform((JavaSymbolicObject) symbolicConstraint);
+    public ASTNode transform(ConjunctiveFormula conjunctiveFormula) {
+        return transform((Term) conjunctiveFormula);
+    }
+
+    @Override
+    public ASTNode transform(DisjunctiveFormula disjunctiveFormula) {
+        return transform((Term) disjunctiveFormula);
     }
 
     @Override
@@ -165,11 +160,6 @@ public class LocalTransformer implements Transformer {
     }
 
     @Override
-    public ASTNode transform(UninterpretedConstraint uninterpretedConstraint) {
-        return transform((JavaSymbolicObject) uninterpretedConstraint);
-    }
-
-    @Override
     public ASTNode transform(UninterpretedToken uninterpretedToken) {
         return transform((Token) uninterpretedToken);
     }
@@ -177,5 +167,20 @@ public class LocalTransformer implements Transformer {
     @Override
     public ASTNode transform(Variable variable) {
         return transform((Term) variable);
+    }
+
+    @Override
+    public ASTNode transform(InjectedKLabel injectedKLabel) {
+        return transform((Term) injectedKLabel);
+    }
+
+    @Override
+    public ASTNode transform(RuleAutomatonDisjunction ruleAutomatonDisjunction) {
+        return transform((JavaSymbolicObject) ruleAutomatonDisjunction);
+    }
+
+    @Override
+    public ASTNode transform(InnerRHSRewrite innerRHSRewrite) {
+        return transform((JavaSymbolicObject) innerRHSRewrite);
     }
 }

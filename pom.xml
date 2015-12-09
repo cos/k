@@ -5,7 +5,7 @@
   <groupId>org.kframework.k</groupId>
   <artifactId>parent</artifactId>
   <packaging>pom</packaging>
-  <version>3.6-SNAPSHOT</version>
+  <version>4.0-beta3-SNAPSHOT</version>
   <name>K Framework Tool Parent</name>
 
   <modules>
@@ -13,7 +13,8 @@
     <module>kernel</module>
     <module>k-distribution</module>
     <module>java-backend</module>
-    <module>sdf-parser</module>
+    <module>coq-backend</module>
+    <module>tiny</module>
   </modules>
 
   <scm>
@@ -54,7 +55,7 @@
     <base>master</base>
     <skipCheckstyleOnWindows>true</skipCheckstyleOnWindows>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <scala.version>2.11.4</scala.version>
+    <scala.version>2.11.7</scala.version>
   </properties>
 
   <dependencies>
@@ -64,9 +65,14 @@
       <version>${scala.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.scala-lang.modules</groupId>
+      <artifactId>scala-java8-compat_2.11</artifactId>
+      <version>0.7.0</version>
+    </dependency>
+    <dependency>
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-reflect</artifactId>
-        <version>2.11.4</version>
+        <version>${scala.version}</version>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
@@ -104,7 +110,6 @@
           <configuration>
             <source>1.8</source>
             <target>1.8</target>
-            <useIncrementalCompilation>false</useIncrementalCompilation>
           </configuration>
         </plugin>
         <plugin>
@@ -188,7 +193,7 @@
               <configLocation>src/main/config/checkstyle-copyright.xml</configLocation>
               <failsOnError>true</failsOnError>
               <consoleOutput>true</consoleOutput>
-              <excludes>**/com/davekoelle/**,**/src/main/sdf/syntax/Integration.sdf</excludes>
+              <excludes>.idea/**,**/com/davekoelle/**,**/src/main/sdf/syntax/Integration.sdf</excludes>
             </configuration>
           </execution>
           <execution>
@@ -228,6 +233,26 @@
           <tagNameFormat>v@{project.version}</tagNameFormat>
           <pushChanges>false</pushChanges>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>1.4.1</version>
+        <configuration>
+          <rules>
+            <requireJavaVersion>
+              <version>[1.8.0-45,)</version>
+            </requireJavaVersion>
+          </rules>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal> enforce</goal>
+            </goals>
+            <id>enforce-java</id>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

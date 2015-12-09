@@ -1,17 +1,19 @@
+// Copyright (c) 2015 K Team. All Rights Reserved.
 package org.kframework
 
-import org.kframework.kore.Sort
+import java.util
 import java.util.Optional
+import collection._
 
 case class CircularityException[T](cycle: Seq[T]) extends Exception(cycle.mkString(" < "))
 
 /**
  * A partially ordered set based on an initial set of direct relations.
  */
-class POSet[T](directRelations: Set[(T, T)]) {
+class POSet[T](directRelations: Set[(T, T)]) extends Serializable {
 
   // convert the input set of relations to Map form for performance
-  private val directRelationsMap: Map[T, Set[T]] = directRelations groupBy { _._1 } mapValues { _ map { _._2 } toSet }
+  private val directRelationsMap: Map[T, Set[T]] = directRelations groupBy { _._1 } mapValues { _ map { _._2 } toSet } map identity
 
   /**
    * Internal private method. Computes the transitive closer of the initial relations.
@@ -23,7 +25,7 @@ class POSet[T](directRelations: Set[(T, T)]) {
   private def transitiveClosure(relations: Map[T, Set[T]]): Map[T, Set[T]] = {
     val newRelations = relations map {
       case (start, succ) =>
-        val newSucc = (succ flatMap { relations.get(_).getOrElse(Set()) })
+        val newSucc = succ flatMap { relations.getOrElse(_, Set()) }
         if (newSucc.contains(start))
           constructAndThrowCycleException(start, start, Seq())
         (start, succ | newSucc)
@@ -34,13 +36,13 @@ class POSet[T](directRelations: Set[(T, T)]) {
   /**
    * Recursive method constructing and throwing and the cycle exception.
    *
-   * @param the "start" (or tail) element to look for when constructing the cycle
-   * @param the current element
-   * @param the path so far
+   * @param start (or tail) element to look for when constructing the cycle
+   * @param current element
+   * @param path so far
    */
   private def constructAndThrowCycleException(start: T, current: T, path: Seq[T]) {
     val currentPath = path :+ current
-    val succs = directRelationsMap(current)
+    val succs = directRelationsMap.getOrElse(current, Set())
     if (succs.contains(start))
       throw new CircularityException(currentPath :+ start)
 
@@ -52,22 +54,27 @@ class POSet[T](directRelations: Set[(T, T)]) {
    */
   val relations = transitiveClosure(directRelationsMap)
 
-  def <(x: T, y: T): Boolean = relations.get(x) map { _.contains(y) } getOrElse (false)
-  def >(x: T, y: T): Boolean = relations.get(y) map { _.contains(x) } getOrElse (false)
+  def <(x: T, y: T): Boolean = relations.get(x).exists(_.contains(y))
+  def >(x: T, y: T): Boolean = relations.get(y).exists(_.contains(x))
   def ~(x: T, y: T) = <(x, y) || <(y, x)
 
   /**
    * Returns true if x < y
    */
-  def lessThen(x: T, y: T): Boolean = <(x, y)
+  def lessThan(x: T, y: T): Boolean = <(x, y)
+  def lessThanEq(x: T, y: T): Boolean = <(x, y) | x == y
+  def directlyLessThan(x: T, y: T): Boolean = directRelationsMap.get(x).exists(_.contains(y))
   /**
    * Returns true if y < x
    */
-  def greaterThen(x: T, y: T): Boolean = >(x, y)
+  def greaterThan(x: T, y: T): Boolean = >(x, y)
+  def greaterThanEq(x: T, y: T): Boolean = >(x, y) | x == y
+  def directlyGreaterThan(x: T, y: T): Boolean = directRelationsMap.get(y).exists(_.contains(x))
   /**
    * Returns true if y < x or y < x
    */
   def inSomeRelation(x: T, y: T) = this.~(x, y)
+  def inSomeRelationEq(x: T, y: T) = this.~(x, y) | x == y
 
   /**
    * Returns an Optional of the least upper bound if it exists, or an empty Optional otherwise.
@@ -94,6 +101,17 @@ class POSet[T](directRelations: Set[(T, T)]) {
             def compare(x: T, y: T) = if (x < y) -1 else if (x > y) 1 else 0
           }))
     }
+  }
+
+  /** Return the subset of items from the argument which are not
+    * less then any other item.
+    */
+  def maximal(sorts : Iterable[T]) : Set[T] =
+    sorts.filter(s1 => !sorts.exists(s2 => lessThan(s1,s2))).toSet
+
+  def maximal(sorts : util.Collection[T]) : util.Set[T] = {
+    import scala.collection.JavaConversions._
+    maximal(sorts : Iterable[T])
   }
 
   override def toString() = {

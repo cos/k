@@ -3,13 +3,15 @@ package org.kframework.backend.java.kil;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.kframework.backend.java.symbolic.Transformer;
 import org.kframework.backend.java.symbolic.Visitor;
-import org.kframework.backend.java.util.Utils;
+import org.kframework.backend.java.util.Constants;
 import org.kframework.kil.ASTNode;
 
 import com.google.common.base.Joiner;
+import org.kframework.kore.K;
 
 
 /**
@@ -18,7 +20,7 @@ import com.google.common.base.Joiner;
  * @author AndreiS
  */
 @SuppressWarnings("serial")
-public abstract class KCollection extends Collection implements Iterable<Term> {
+public abstract class KCollection extends Collection implements Iterable<Term>, org.kframework.kore.KCollection {
 
     protected KCollection(Variable frame, Kind kind) {
         super(frame, kind);
@@ -72,8 +74,8 @@ public abstract class KCollection extends Collection implements Iterable<Term> {
     @Override
     protected final int computeHash() {
         int hashCode = 1;
-        hashCode = hashCode * Utils.HASH_PRIME + (frame == null ? 0 : frame.hashCode());
-        hashCode = hashCode * Utils.HASH_PRIME + getContents().hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + (frame == null ? 0 : frame.hashCode());
+        hashCode = hashCode * Constants.HASH_PRIME + getContents().hashCode();
         return hashCode;
     }
 
@@ -102,11 +104,6 @@ public abstract class KCollection extends Collection implements Iterable<Term> {
             stringBuilder.append(getIdentityName());
         }
         return stringBuilder.toString();
-    }
-
-    @Override
-    protected List<Term> getKComponents(TermContext context) {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -184,4 +181,17 @@ public abstract class KCollection extends Collection implements Iterable<Term> {
         return term;
     }
 
+    @Override
+    public List<K> items() {
+        return (List<K>) (Object) getContents();
+    }
+
+    @Override
+    public Stream<K> stream() {
+        return items().stream();
+    }
+
+    public int size() {
+        return items().size();
+    }
 }

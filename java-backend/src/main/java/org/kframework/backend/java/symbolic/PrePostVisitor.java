@@ -18,20 +18,12 @@ public class PrePostVisitor implements Visitor {
         return preVisitor;
     }
 
-    public void setPreVisitor(CombinedLocalVisitor preVisitor) {
-        this.preVisitor = preVisitor;
-    }
-
     public CombinedLocalVisitor getPostVisitor() {
         return postVisitor;
     }
 
-    public void setPostVisitor(CombinedLocalVisitor postVisitor) {
-        this.postVisitor = postVisitor;
-    }
-
-    CombinedLocalVisitor preVisitor = new CombinedLocalVisitor();
-    CombinedLocalVisitor postVisitor = new CombinedLocalVisitor();
+    protected final CombinedLocalVisitor preVisitor = new CombinedLocalVisitor();
+    protected final CombinedLocalVisitor postVisitor = new CombinedLocalVisitor();
 
     @Override
     public String getName() {
@@ -139,6 +131,23 @@ public class PrePostVisitor implements Visitor {
     }
 
     @Override
+    public void visit(InjectedKLabel injectedKLabel) {
+        preVisitor.resetProceed();
+        injectedKLabel.accept(preVisitor);
+        if (!preVisitor.isProceed()) return;
+        injectedKLabel.injectedKLabel().accept(this);
+        injectedKLabel.accept(postVisitor);
+    }
+
+    @Override
+    public void visit(RuleAutomatonDisjunction ruleAutomatonDisjunction) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visit(InnerRHSRewrite innerRHSRewrite) { }
+
+    @Override
     public void visit(KItem kItem) {
         preVisitor.resetProceed();
         kItem.accept(preVisitor);
@@ -163,20 +172,6 @@ public class PrePostVisitor implements Visitor {
         token.accept(preVisitor);
         if (!preVisitor.isProceed()) return;
         token.accept(postVisitor);
-    }
-
-    @Override
-    public void visit(UninterpretedConstraint uninterpretedConstraint) {
-        preVisitor.resetProceed();
-        uninterpretedConstraint.accept(preVisitor);
-        if (!preVisitor.isProceed()) return;
-
-        for (UninterpretedConstraint.Equality equality : uninterpretedConstraint.equalities()) {
-            equality.leftHandSide().accept(this);
-            equality.rightHandSide().accept(this);
-        }
-
-        uninterpretedConstraint.accept(postVisitor);
     }
 
     @Override
@@ -268,7 +263,7 @@ public class PrePostVisitor implements Visitor {
     }
 
     @Override
-    public void visit(SymbolicConstraint node) {
+    public void visit(ConjunctiveFormula node) {
         preVisitor.resetProceed();
         node.accept(preVisitor);
         if (!preVisitor.isProceed()) return;
@@ -279,6 +274,20 @@ public class PrePostVisitor implements Visitor {
         for (Equality equality : node.equalities()) {
             equality.leftHandSide().accept(this);
             equality.rightHandSide().accept(this);
+        }
+        for (DisjunctiveFormula disjunctiveFormula : node.disjunctions()) {
+            disjunctiveFormula.accept(this);
+        }
+        node.accept(postVisitor);
+    }
+
+    @Override
+    public void visit(DisjunctiveFormula node) {
+        preVisitor.resetProceed();
+        node.accept(preVisitor);
+        if (!preVisitor.isProceed()) return;
+        for (ConjunctiveFormula conjunctiveFormula : node.conjunctions()) {
+            conjunctiveFormula.accept(this);
         }
         node.accept(postVisitor);
     }

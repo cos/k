@@ -2,8 +2,6 @@
 
 package org.kframework.kore
 
-import scala.collection.immutable.Nil
-
 trait KORETransformer[T] extends ((K) => T) with java.util.function.Function[K, T] {
 
   def apply(k: K): T = k match {
@@ -11,7 +9,8 @@ trait KORETransformer[T] extends ((K) => T) with java.util.function.Function[K, 
     case k: KRewrite => apply(k)
     case k: KToken => apply(k)
     case k: KVariable => apply(k)
-    case k: KSequence => apply(k)
+    case k: KSequence => apply(k: KSequence)
+    case k: InjectedKLabel => apply(k)
   }
 
   def apply(k: KApply): T
@@ -19,6 +18,7 @@ trait KORETransformer[T] extends ((K) => T) with java.util.function.Function[K, 
   def apply(k: KToken): T
   def apply(k: KVariable): T
   def apply(k: KSequence): T
+  def apply(k: InjectedKLabel): T
 }
 
 trait KOREVisitor extends KORETransformer[Nothing] {
@@ -30,4 +30,3 @@ trait KOREVisitor extends KORETransformer[Nothing] {
 /* Java interfaces */
 
 abstract class AbstractKORETransformer[T] extends KORETransformer[T]
-abstract class AbstractKOREVisitor extends KOREVisitor

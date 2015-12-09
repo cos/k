@@ -1,6 +1,5 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
-
-module TEST [location(startLine(#token(Int,"3")),startColumn(#token(Int,"1")),endLine(#token(Int,"6")),endColumn(#token(Int,"9")))]
-  syntax Exp [location(startLine(#token(Int,"4")),startColumn(#token(Int,"3")),endLine(#token(Int,"4")),endColumn(#token(Int,"12")))]
-  rule A [location(startLine(#token(Int,"5")),startColumn(#token(Int,"8")),endLine(#token(Int,"5")),endColumn(#token(Int,"13"))) sort(Exp)]=>A [location(startLine(#token(Int,"5")),startColumn(#token(Int,"17")),endLine(#token(Int,"5")),endColumn(#token(Int,"18"))) sort(Exp)] requires #token(KBoolean,"true") ensures #token(KBoolean,"true") [location(startLine(#token(Int,"5")),startColumn(#token(Int,"3")),endLine(#token(Int,"5")),endColumn(#token(Int,"17")))]
+module TEST [Location(#token("3",Int),#token("1",Int),#token("6",Int),#token("9",Int)) Source(#token("src/test/resources/convertor-tests/simpleRule.k",KString))]
+  syntax Exp [Location(#token("4",Int),#token("3",Int),#token("4",Int),#token("12",Int)) Source(#token("src/test/resources/convertor-tests/simpleRule.k",KString))]
+  rule =>(A,A) requires _andBool_(#token("true",Bool),isExp(A)) ensures #token("true",Bool) [Location(#token("5",Int),#token("3",Int),#token("5",Int),#token("17",Int)) Source(#token("src/test/resources/convertor-tests/simpleRule.k",KString))]
 endmodule

@@ -2,113 +2,72 @@
 
 package org.kframework.kore.convertors;
 
-import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import org.kframework.attributes.*;
 import org.kframework.builtin.Labels;
 import org.kframework.builtin.Sorts;
-import org.kframework.kil.ASTNode;
-import org.kframework.kil.AbstractVisitor;
-import org.kframework.kil.Attributes;
-import org.kframework.kil.Bag;
-import org.kframework.kil.BoolBuiltin;
-import org.kframework.kil.Bracket;
-import org.kframework.kil.Cell;
-import org.kframework.kil.Configuration;
-import org.kframework.kil.Definition;
-import org.kframework.kil.FloatBuiltin;
-import org.kframework.kil.Hole;
-import org.kframework.kil.Import;
-import org.kframework.kil.Int32Builtin;
-import org.kframework.kil.IntBuiltin;
-import org.kframework.kil.KApp;
-import org.kframework.kil.KLabelConstant;
+import org.kframework.kil.*;
 import org.kframework.kil.KSequence;
-import org.kframework.kil.Lexical;
-import org.kframework.kil.ListTerminator;
-import org.kframework.kil.LiterateModuleComment;
-import org.kframework.kil.Location;
-import org.kframework.kil.Module;
-import org.kframework.kil.ModuleItem;
-import org.kframework.kil.NonTerminal;
-import org.kframework.kil.PriorityBlock;
-import org.kframework.kil.PriorityExtended;
-import org.kframework.kil.PriorityExtendedAssoc;
-import org.kframework.kil.Production;
-import org.kframework.kil.Require;
-import org.kframework.kil.Restrictions;
-import org.kframework.kil.Rewrite;
-import org.kframework.kil.Sentence;
-import org.kframework.kil.StringBuiltin;
-import org.kframework.kil.StringSentence;
-import org.kframework.kil.Syntax;
-import org.kframework.kil.Term;
-import org.kframework.kil.TermComment;
-import org.kframework.kil.TermCons;
-import org.kframework.kil.Terminal;
-import org.kframework.kil.Token;
-import org.kframework.kil.UserList;
-import org.kframework.kil.Variable;
 import org.kframework.kil.loader.Context;
 import org.kframework.kore.*;
-import org.kframework.kore.outer.*;
-import org.kframework.utils.StringBuilderUtil;
+import org.kframework.kore.KLabel;
+import org.kframework.kore.KList;
+import org.kframework.meta.Up;
 
-import scala.Enumeration.Value;
-import scala.collection.Seq;
-
-import com.google.common.collect.Sets;
-
-import static org.kframework.kore.outer.Constructors.*;
-import static org.kframework.kore.Constructors.*;
+import static org.kframework.kore.KORE.*;
 import static org.kframework.Collections.*;
 
 @SuppressWarnings("unused")
 public class KILtoInnerKORE extends KILTransformation<K> {
 
     private Context context;
+    private final boolean doDropQuote;
 
-    public KILtoInnerKORE(org.kframework.kil.loader.Context context) {
+    private KLabel KLabel(String name) {
+        return KORE.KLabel(dropQuote(name));
+    }
+
+    public KILtoInnerKORE(org.kframework.kil.loader.Context context, boolean doDropQuote) {
         this.context = context;
+        this.doDropQuote = doDropQuote;
     }
 
     public static final String PRODUCTION_ID = "productionID";
     public static final String LIST_TERMINATOR = "listTerminator";
 
+    public static final Labels labels = new Labels(KORE.constructor());
+
     public K apply(Bag body) {
         List<K> contents = body.getContents().stream().map(this).collect(Collectors.toList());
-        return KApply(Labels.KBag(), (KList(contents)));
+        return KApply(labels.KBag(), (KList(contents)));
     }
 
     // public K apply(TermComment c) {
     // return KList();
     // }
 
-    private KApply cellMarker = org.kframework.kore.outer.Configuration.cellMarker();
+    private K cellMarker = org.kframework.definition.Configuration.cellMarker();
 
     @SuppressWarnings("unchecked")
     public KApply apply(Cell body) {
         // K x = ;
         // if (x instanceof KApply && ((KApply) x).klabel() == Labels.KBag()
         // && ((KApply) x).size() == 0) {
+
         return KApply(KLabel(body.getLabel()), KList(apply(body.getContents())),
-                Attributes(cellMarker));
+                Attributes(cellMarker).addAll(convertCellAttributes(body)));
         // } else {
         // return KApply(KLabel(body.getLabel()), KList(x),
-        // Attributes(cellMarker));
+        // Att(cellMarker));
         // }
     }
 
     public K apply(org.kframework.kil.KLabelConstant c) {
-        return InjectedKLabel(KLabel(c.getLabel()));
+        return InjectedKLabel(KLabel(c.getLabel()), Attributes());
     }
 
     public org.kframework.kore.KSequence apply(KSequence seq) {
@@ -121,14 +80,14 @@ public class KILtoInnerKORE extends KILTransformation<K> {
 
     public org.kframework.kore.KApply apply(Bracket b) {
         Object content = apply(b.getContent());
-        if(content instanceof KList) {
-            content = InjectedKList((KList) content);
+        if (content instanceof KList) {
+            content = KApply(KLabel(KORE.injectedKListLabel()), (KList) content);
         }
         return KApply(KLabel("bracket"), KList((K) content));
     }
 
     public KApply apply(TermCons cons) {
-        org.kframework.kore.Attributes att = attributesFor(cons);
+        org.kframework.attributes.Att att = attributesFor(cons);
         return KApply(KLabel(cons.getProduction().getKLabel()), KList(apply(cons.getContents())),
                 att);
     }
@@ -143,11 +102,18 @@ public class KILtoInnerKORE extends KILTransformation<K> {
         return KApply(KLabel(terminatorKLabel), KList(), Attributes().add(LIST_TERMINATOR));
     }
 
+    public String dropQuote(String s) {
+        if (doDropQuote && s.startsWith("'"))
+            return s.substring(1);
+        else
+            return s;
+    }
+
     public K apply(KApp kApp) {
         Term label = kApp.getLabel();
 
         if (label instanceof Token) {
-            return KToken(Sort(((Token) label).tokenSort().getName()), ((Token) label).value());
+            return KToken(((Token) label).value(), Sort(((Token) label).tokenSort().getName()));
         } else {
             Term child = kApp.getChild();
 
@@ -163,11 +129,11 @@ public class KILtoInnerKORE extends KILTransformation<K> {
     }
 
     public KLabel applyToLabel(Term label) {
-        if(label instanceof KLabelConstant) {
-            return KLabel(((KLabelConstant) label).getLabel());
-        } else if(label instanceof KApp) {
+        if (label instanceof KLabelConstant) {
+            return KLabel(dropQuote(((KLabelConstant) label).getLabel()));
+        } else if (label instanceof KApp) {
             throw new RuntimeException(label.toString());
-        } else if(label instanceof Variable) {
+        } else if (label instanceof Variable) {
             return (KLabel) apply(label);
         }
         throw new RuntimeException(label.getClass().toString());
@@ -177,21 +143,21 @@ public class KILtoInnerKORE extends KILTransformation<K> {
         return (KList) kList.getContents().stream().map(this).collect(toKList());
     }
 
-    private org.kframework.kore.Attributes attributesFor(TermCons cons) {
+    private org.kframework.attributes.Att attributesFor(TermCons cons) {
         String uniqueishID = "" + System.identityHashCode(cons.getProduction());
-        org.kframework.kore.Attributes att = sortAttributes(cons).add(PRODUCTION_ID, uniqueishID);
+        org.kframework.attributes.Att att = sortAttributes(cons).add(PRODUCTION_ID, uniqueishID);
         return att;
     }
 
-    private org.kframework.kore.Attributes sortAttributes(Term cons) {
+    private org.kframework.attributes.Att sortAttributes(Term cons) {
 
         return convertAttributes(cons).addAll(
                 Attributes(KApply(KLabel("sort"),
-                        KList(KToken(Sorts.KString(), cons.getSort().toString())))));
+                        KList(KToken(cons.getSort().toString(), Sorts.KString())))));
     }
 
     public KApply apply(Hole hole) {
-        return KApply(Labels.Hole(), KList(KToken(Sort(hole.getSort().getName()), "")),
+        return KApply(labels.Hole(), KList(KToken("", Sort(hole.getSort().getName()))),
                 sortAttributes(hole));
     }
 
@@ -202,11 +168,11 @@ public class KILtoInnerKORE extends KILTransformation<K> {
     public KRewrite apply(Rewrite r) {
         Object right = apply(r.getRight());
         if (right instanceof KList)
-            right = InjectedKList((KList) right);
+            right = KApply(KLabel(KORE.injectedKListLabel()), (KList) right);
 
         Object left = apply(r.getLeft());
         if (left instanceof KList)
-            left = InjectedKList((KList) left);
+            left = KApply(KLabel(KORE.injectedKListLabel()), (KList) left);
 
         return KRewrite((K) left, (K) right, sortAttributes(r));
     }
@@ -215,14 +181,14 @@ public class KILtoInnerKORE extends KILTransformation<K> {
         if (t != null)
             return apply(t);
         else
-            return KToken(Sorts.KBoolean(), "true");
+            return KToken("true", Sorts.Bool());
     }
 
     public K apply(TermComment t) {
         return KSequence();
     }
 
-    public org.kframework.kore.Attributes convertAttributes(ASTNode t) {
+    public org.kframework.attributes.Att convertAttributes(ASTNode t) {
         Attributes attributes = t.getAttributes();
 
         Set<K> attributesSet = attributes
@@ -231,20 +197,49 @@ public class KILtoInnerKORE extends KILTransformation<K> {
                 .map(key -> {
                     String keyString = key.toString();
                     String valueString = attributes.get(key).getValue().toString();
+                    if (keyString.equals("klabel")) {
+                        return (K) KApply(KLabel("klabel"),
+                                KList(KToken(dropQuote(valueString), Sort("AttributeValue"))));
+                    } else {
+                        return (K) KApply(KLabel(keyString),
+                                KList(KToken(valueString, Sort("AttributeValue"))));
+                    }
 
-                    return (K) KApply(KLabel(keyString),
-                            KList(KToken(Sort("AttributeValue"), valueString)));
                 }).collect(Collectors.toSet());
 
         return Attributes(immutable(attributesSet))
-                .addAll(attributesFromLocation(t.getLocation()));
+                .addAll(attributesFromLocation(t.getLocation()))
+                .addAll(attributesFromSource(t.getSource()));
     }
 
-    private org.kframework.kore.Attributes attributesFromLocation(Location location) {
-        if (location != null)
-            return Attributes(Location(location.lineStart, location.columnStart, location.lineEnd,
-                    location.columnEnd));
-        else
+    private Att attributesFromSource(Source source) {
+        Up up = new Up(KORE.self(), Set("org.kframework.attributes"));
+        if (source != null) {
+            return Att.apply(Set(up.apply(source)));
+        }
+        return Attributes();
+    }
+
+    public org.kframework.attributes.Att convertCellAttributes(Cell c) {
+        Map<String, String> attributes = c.getCellAttributes();
+
+        Set<K> attributesSet = attributes
+                .keySet()
+                .stream()
+                .map(key -> {
+                    String value = attributes.get(key);
+                    return (K)KApply(KLabel(key), KList(KToken(value, Sort("AttributeValue"))));
+                }).collect(Collectors.toSet());
+
+        return Attributes(immutable(attributesSet));
+    }
+
+    private org.kframework.attributes.Att attributesFromLocation(Location location) {
+        Up up = new Up(KORE.self(), Set("org.kframework.attributes"));
+
+        if (location != null) {
+            return org.kframework.attributes.Att.apply(Set(up.apply(location)));
+        } else
             return Attributes();
     }
 }

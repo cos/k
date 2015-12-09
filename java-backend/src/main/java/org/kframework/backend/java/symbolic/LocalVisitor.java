@@ -143,8 +143,13 @@ public class LocalVisitor implements Visitor {
     }
 
     @Override
-    public void visit(SymbolicConstraint node) {
-        visit((JavaSymbolicObject) node);
+    public void visit(ConjunctiveFormula node) {
+        visit((Term) node);
+    }
+
+    @Override
+    public void visit(DisjunctiveFormula node) {
+        visit((Term) node);
     }
 
     @Override
@@ -158,11 +163,6 @@ public class LocalVisitor implements Visitor {
     }
 
     @Override
-    public void visit(UninterpretedConstraint uninterpretedConstraint) {
-        visit((JavaSymbolicObject) uninterpretedConstraint);
-    }
-
-    @Override
     public void visit(UninterpretedToken uninterpretedToken) {
         visit((Token) uninterpretedToken);
     }
@@ -170,5 +170,19 @@ public class LocalVisitor implements Visitor {
     @Override
     public void visit(Variable variable) {
         visit((Term) variable);
+    }
+
+    @Override
+    public void visit(InjectedKLabel injectedKLabel) {
+        visit((Term) injectedKLabel);
+    }
+
+    @Override
+    public void visit(RuleAutomatonDisjunction ruleAutomatonDisjunction) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void visit(InnerRHSRewrite innerRHSRewrite) {
     }
 }

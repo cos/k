@@ -2,10 +2,9 @@
 
 package org.kframework.kil;
 
-import java.util.HashMap;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
-import org.kframework.compile.transformers.AddPredicates;
 import org.kframework.kil.loader.Constants;
 import org.kframework.kil.loader.Context;
 import org.kframework.kil.visitors.Visitor;
@@ -21,7 +20,7 @@ public class KLabelConstant extends KLabel {
     /**
      * HashMap caches the constants to ensure uniqueness.
      */
-    private static final HashMap<String, KLabelConstant> cache = new HashMap<>();
+    private static final ConcurrentHashMap<String, KLabelConstant> cache = new ConcurrentHashMap<>();
 
     /*
      * Useful constants.
@@ -38,8 +37,8 @@ public class KLabelConstant extends KLabel {
     public static final KLabelConstant BOOL_ANDBOOL_KLABEL = of("'_andBool_");
     public static final KLabelConstant NOTBOOL_KLABEL = of("'notBool_");
     public static final KLabelConstant BOOL_ANDTHENBOOL_KLABEL = of("'_andThenBool_");
-    public static final KLabelConstant KRESULT_PREDICATE = of(AddPredicates.predicate(Sort.KRESULT));
-    public static final KLabelConstant STREAM_PREDICATE = of(AddPredicates.predicate(Sort.of("Stream")));
+    public static final KLabelConstant KRESULT_PREDICATE = of("is" + Sort.KRESULT);
+    public static final KLabelConstant STREAM_PREDICATE = of("is" + Sort.of("Stream"));
     public static final KLabelConstant STRING_PLUSSTRING_KLABEL = of("'_+String_");
     public static final KLabelConstant FRESH_KLABEL = of("fresh");
 
@@ -53,13 +52,7 @@ public class KLabelConstant extends KLabel {
      */
     public static KLabelConstant of(String label) {
         assert label != null;
-
-        KLabelConstant kLabelConstant = cache.get(label);
-        if (kLabelConstant == null) {
-            kLabelConstant = new KLabelConstant(label);
-            cache.put(label, kLabelConstant);
-        }
-        return kLabelConstant;
+        return cache.computeIfAbsent(label, x -> new KLabelConstant(x));
     }
 
     /**

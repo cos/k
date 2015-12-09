@@ -1,8 +1,6 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.kil;
 
-import org.kframework.backend.java.symbolic.Matcher;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Transformer;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.kil.ASTNode;
@@ -19,8 +17,8 @@ public class KLabelInjection extends KLabel {
     /**
      * Returns an injection of the term into a {@link org.kframework.backend.java.kil.KItem}.
      */
-    public static KItem injectionOf(Term term, TermContext context) {
-        return KItem.of(new KLabelInjection(term), KList.EMPTY, context, term.getSource(), term.getLocation());
+    public static KItem injectionOf(Term term, GlobalContext global) {
+        return KItem.of(new KLabelInjection(term), KList.EMPTY, global, term.getSource(), term.getLocation());
     }
 
     private final Term term;
@@ -85,16 +83,6 @@ public class KLabelInjection extends KLabel {
     @Override
     public String toString() {
         return "(# " + term + ")";
-    }
-
-    @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
     }
 
     @Override

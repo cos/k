@@ -1,36 +1,31 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
 package org.kframework.krun;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import com.beust.jcommander.DynamicParameter;
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParameterException;
+import com.beust.jcommander.ParametersDelegate;
+import com.google.inject.Inject;
 import org.apache.commons.lang3.tuple.Pair;
-import org.kframework.backend.unparser.OutputModes;
-import org.kframework.kil.loader.Context;
-import org.kframework.krun.api.SearchType;
+import org.kframework.unparser.OutputModes;
 import org.kframework.main.GlobalOptions;
-import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.rewriter.SearchType;
+import org.kframework.utils.errorsystem.KEMException;
+import org.kframework.utils.inject.RequestScoped;
 import org.kframework.utils.options.BaseEnumConverter;
 import org.kframework.utils.options.DefinitionLoadingOptions;
 import org.kframework.utils.options.OnOffConverter;
 import org.kframework.utils.options.SMTOptions;
 import org.kframework.utils.options.StringListConverter;
 
-import com.beust.jcommander.DynamicParameter;
-import com.beust.jcommander.Parameter;
-import com.beust.jcommander.ParameterException;
-import com.beust.jcommander.ParametersDelegate;
-import com.google.inject.Inject;
+import java.io.File;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+@RequestScoped
 public final class KRunOptions {
-
-    public KRunOptions() {}
-
-    //TODO(dwightguth): remove in Guice 4.0
-    @Inject
-    public KRunOptions(Void v) {}
 
     @ParametersDelegate
     public transient GlobalOptions global = new GlobalOptions();
@@ -54,7 +49,7 @@ public final class KRunOptions {
                 return null;
             }
             if (parameters.size() > 1) {
-                throw KExceptionManager.criticalError("You can only specify $PGM on the command line itself");
+                throw KEMException.criticalError("You can only specify $PGM on the command line itself");
             }
             return parameters.get(0);
         }
@@ -63,9 +58,9 @@ public final class KRunOptions {
         public DefinitionLoadingOptions definitionLoading = new DefinitionLoadingOptions();
 
         @Parameter(names={"--parser"}, description="Command used to parse programs. Default is \"kast\"")
-        private String parser;
+        public String parser;
 
-        public String parser(Context context) {
+        public String parser() {
             if (parser == null) {
                 if (term()) {
                     return "kast --parser ground";
@@ -77,16 +72,28 @@ public final class KRunOptions {
             }
         }
 
+        public String parser(String mainModuleName) {
+            if (parser == null) {
+                if (term()) {
+                    return "kast -m " + mainModuleName;
+                } else {
+                    return "kast";
+                }
+            } else {
+                return parser;
+            }
+        }
+
         @DynamicParameter(names={"--config-parser", "-p"}, description="Command used to parse " +
                 "configuration variables. Default is \"kast --parser ground -e\". See description of " +
-                "--parser. For example, -cpPGM=\"kast\" specifies that the configuration variable $PGM " +
+                "--parser. For example, -pPGM=\"kast\" specifies that the configuration variable $PGM " +
                 "should be parsed with the command \"kast\".")
         private Map<String, String> configVarParsers = new HashMap<>();
 
         @DynamicParameter(names={"--config-var", "-c"}, description="Specify values for variables in the configuration.")
         private Map<String, String> configVars = new HashMap<>();
 
-        public Map<String, Pair<String, String>> configVars(Context context) {
+        public Map<String, Pair<String, String>> configVars() {
             Map<String, Pair<String, String>> result = new HashMap<>();
             for (Map.Entry<String, String> entry : configVars.entrySet()) {
                 String cfgParser = "kast --parser ground -e";
@@ -97,9 +104,30 @@ public final class KRunOptions {
             }
             if (!term() && pgm() != null) {
                 if (configVars.containsKey("PGM")) {
-                    throw KExceptionManager.criticalError("Cannot specify both -cPGM and a program to parse.");
+                    throw KEMException.criticalError("Cannot specify both -cPGM and a program to parse.");
                 }
-                result.put("PGM", Pair.of(pgm(), parser(context)));
+                result.put("PGM", Pair.of(pgm(), parser()));
+            }
+            return result;
+        }
+
+        public Map<String, Pair<String, String>> configVars(String mainModuleName) {
+            Map<String, Pair<String, String>> result = new HashMap<>();
+            for (Map.Entry<String, String> entry : configVars.entrySet()) {
+                String cfgParser = "kast -m " + mainModuleName + " -e";
+                if (configVarParsers.get(entry.getKey()) != null) {
+                    cfgParser = configVarParsers.get(entry.getKey());
+                }
+                result.put(entry.getKey(), Pair.of(entry.getValue(), cfgParser));
+            }
+            if (!term() && pgm() != null) {
+                if (configVars.containsKey("PGM")) {
+                    throw KEMException.criticalError("Cannot specify both -cPGM and a program to parse.");
+                }
+                result.put("PGM", Pair.of(pgm(), parser(mainModuleName)));
+            }
+            if (configVars.containsKey("STDIN") || configVars.containsKey("IO")) {
+                throw KEMException.criticalError("Cannot specify -cSTDIN or -cIO which are reserved for the builtin K-IO module.");
             }
             return result;
         }
@@ -109,10 +137,10 @@ public final class KRunOptions {
 
         public boolean term() {
             if (term && configVars.size() > 0) {
-                throw KExceptionManager.criticalError("You cannot specify both the term and the configuration variables.");
+                throw KEMException.criticalError("You cannot specify both the term and the configuration variables.");
             }
             if (term && pgm() == null) {
-                throw KExceptionManager.criticalError("You must specify something to parse with the --term option.");
+                throw KEMException.criticalError("You must specify something to parse with the --term option.");
             }
             return term;
         }
@@ -124,13 +152,13 @@ public final class KRunOptions {
 
     public boolean io() {
         if (io != null && io == true && search()) {
-            throw KExceptionManager.criticalError("You cannot specify both --io on and --search");
+            throw KEMException.criticalError("You cannot specify both --io on and --search");
         }
         if (io != null && io == true && experimental.ltlmc()) {
-            throw KExceptionManager.criticalError("You cannot specify both --io on and --ltlmc");
+            throw KEMException.criticalError("You cannot specify both --io on and --ltlmc");
         }
         if (io != null && io == true && experimental.debugger()) {
-            throw KExceptionManager.criticalError("You cannot specify both --io on and --debugger");
+            throw KEMException.criticalError("You cannot specify both --io on and --debugger");
         }
         if (search()
                 || experimental.prove != null
@@ -148,7 +176,7 @@ public final class KRunOptions {
     public ColorOptions color = new ColorOptions();
 
     @Parameter(names={"--output", "-o"}, converter=OutputModeConverter.class,
-            description="How to display krun results. <mode> is either [pretty|smart|compatible|kore|raw|binary|none].")
+            description="How to display krun results. <mode> is either [pretty|sound|kast|binary|none|no-wrap].")
     public OutputModes output = OutputModes.PRETTY;
 
     public static class OutputModeConverter extends BaseEnumConverter<OutputModes> {
@@ -185,7 +213,7 @@ public final class KRunOptions {
     public SearchType searchType() {
         if (search) {
             if (searchFinal || searchAll || searchOneStep || searchOneOrMoreSteps) {
-                throw KExceptionManager.criticalError("You can specify only one type of search.");
+                throw KEMException.criticalError("You can specify only one type of search.");
             }
             if (depth != null) {
                 return SearchType.STAR;
@@ -193,17 +221,17 @@ public final class KRunOptions {
             return SearchType.FINAL;
         } else if (searchFinal) {
             if (searchAll || searchOneStep || searchOneOrMoreSteps) {
-                throw KExceptionManager.criticalError("You can specify only one type of search.");
+                throw KEMException.criticalError("You can specify only one type of search.");
             }
             return SearchType.FINAL;
         } else if (searchAll) {
             if (searchOneStep || searchOneOrMoreSteps) {
-                throw KExceptionManager.criticalError("You can specify only one type of search.");
+                throw KEMException.criticalError("You can specify only one type of search.");
             }
             return SearchType.STAR;
         } else if (searchOneStep) {
             if (searchOneOrMoreSteps) {
-                throw KExceptionManager.criticalError("You can specify only one type of search.");
+                throw KEMException.criticalError("You can specify only one type of search.");
             }
             return SearchType.ONE;
         } else if (searchOneOrMoreSteps) {
@@ -216,11 +244,8 @@ public final class KRunOptions {
     @Parameter(names="--pattern", description="Specify a term and/or side condition that the result of execution or search must match in order to succeed. Return the resulting matches as a list of substitutions. In conjunction with it you can specify other 2 options that are optional: bound (the number of desired solutions) and depth (the maximum depth of the search).")
     public String pattern;
 
-    @Parameter(names="--exit-code", description="Specify a term containing a named integer variable which will be used as the exit status of krun.")
+    @Parameter(names="--exit-code", description="Specify a matching pattern containing an integer variable which will be used as the exit status of krun.")
     public String exitCodePattern;
-
-    public static final String DEFAULT_PATTERN = "<generatedTop> B:Bag </generatedTop> [anywhere]";
-
 
     @Parameter(names="--bound", description="The number of desired solutions for search.")
     public Integer bound;
@@ -230,6 +255,9 @@ public final class KRunOptions {
 
     @Parameter(names="--graph", description="Displays the search graph generated by the last search.")
     public boolean graph = false;
+
+    @Parameter(names="--output-file", description="Store output in the file instead of displaying it.")
+    public String outputFile;
 
     @ParametersDelegate
     public Experimental experimental = new Experimental();
@@ -270,13 +298,18 @@ public final class KRunOptions {
         @ParametersDelegate
         public SMTOptions smt = new SMTOptions();
 
-        @Parameter(names="--output-file", description="Store output in the file instead of displaying it.")
-        public String outputFile;
-
         @Parameter(names="--trace", description="Print a trace of every rule applied.")
         public boolean trace = false;
 
         @Parameter(names="--coverage-file", description="Record a trace of locations of all rules and terms applied.")
         public File coverage = null;
+
+        @Parameter(names="--native-libraries", description="Native libraries to link the rewrite engine against. Useful in defining rewriter plugins.",
+                listConverter=StringListConverter.class)
+        public List<String> nativeLibraries = Collections.emptyList();
+
+        @Parameter(names="--native-library-path", description="Directories to search for native libraries in for linking. Useful in defining rewriter plugins.",
+                listConverter=StringListConverter.class)
+        public List<String> nativeLibraryPath = Collections.emptyList();
     }
 }

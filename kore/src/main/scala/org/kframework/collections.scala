@@ -2,6 +2,8 @@
 
 package org.kframework
 
+import java.util
+
 import collection.JavaConverters._
 import java.util.stream.StreamSupport
 import scala.collection.mutable.Builder
@@ -10,6 +12,7 @@ import java.util.function.BiConsumer
 import java.util.function.BinaryOperator
 import java.util.function.Supplier
 import scala.collection.mutable.SetBuilder
+import collection._
 
 object Collections {
   def immutable[T](s: java.lang.Iterable[T]): Iterable[T] = s.asScala
@@ -17,10 +20,25 @@ object Collections {
   def immutable[T](s: java.util.List[T]): Seq[T] = s.asScala
   def immutable[T](s: Array[T]): Seq[T] = s
 
+  def mutable[T](s: List[T]): java.util.List[T] = s.asJava
+  def mutable[T](s: Seq[T]): java.util.List[T] = s.asJava
+  def mutable[K, V](s: Map[K, V]): java.util.Map[K, V] = s.asJava
+  def mutable[T](s: Set[T]): java.util.Set[T] = {
+    val x = new util.HashSet[T]()
+    x.addAll(s.asJava)
+    x
+  }
+
   def iterable[T](c: Iterable[T]): java.lang.Iterable[T] = c.asJava
   def stream[T](c: Iterable[T]): java.util.stream.Stream[T] = StreamSupport.stream(c.asJava.spliterator(), false);
-  def stream[T](c: Collection[T]): java.util.stream.Stream[T] = c.stream
+  //  def stream[T](c: Collection[T]): java.util.stream.Stream[T] = c.stream
   def iterable[T](c: Collection[T]): java.lang.Iterable[T] = c.iterable.asJava
+
+  def map[T](f: java.util.function.Function[T, T])(s: Set[T]): Set[T] = s.map(x => f(x))
+  def map[T](f: java.util.function.Function[T, T])(s: List[T]): List[T] = s.map(x => f(x))
+  def map[T](f: java.util.function.Function[T, T])(s: Seq[T]): Seq[T] = s.map(x => f(x))
+
+  def add[T](e: T)(s: Set[T]): Set[T] = s + e
 
   @annotation.varargs def List[T](es: T*): scala.List[T] = scala.List[T](es: _*)
   @annotation.varargs def Seq[T](es: T*) = scala.collection.immutable.Seq[T](es: _*)
@@ -41,7 +59,8 @@ object Collections {
       new AssocBuilder[T, Set[T], Set[T]](new SetBuilder(Set()))))
 }
 
-class CombinerFromBuilder[T, R <: { def iterator: Iterator[T] }](protected[this] val b: Builder[T, R]) extends Combiner[T, R] {
+class CombinerFromBuilder[T, R <: {def iterator : Iterator[T]}](protected[this] val b: Builder[T, R]) extends
+Combiner[T, R] {
   type This <: CombinerFromBuilder[T, R]
 
   def +=(elem: T): this.type = { b += elem; this }
@@ -51,6 +70,8 @@ class CombinerFromBuilder[T, R <: { def iterator: Iterator[T] }](protected[this]
   def clear(): Unit = b.clear()
 
   def result(): R = b.result()
+
+  import scala.language.reflectiveCalls
 
   def iterator() = b.result().iterator
 }
@@ -70,7 +91,8 @@ case class Collector[T, R](cf: () => Combiner[T, R]) extends java.util.stream.Co
 
   def combiner() = new BinaryOperator[Combiner[T, R]] {
     def apply(a: Combiner[T, R], b: Combiner[T, R]) = {
-      a.combine(b); a
+      a.combine(b);
+      a
     }
   }
 

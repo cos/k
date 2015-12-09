@@ -5,12 +5,12 @@ import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.kframework.krun.api.io.File;
 import org.kframework.krun.api.io.FileSystem;
+import org.kframework.utils.errorsystem.KEMException;
 import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.FileUtil;
+import org.kframework.utils.inject.RequestScoped;
 
 import com.google.inject.Inject;
-import com.google.inject.Singleton;
-
 import java.io.EOFException;
 import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
@@ -20,7 +20,7 @@ import java.io.RandomAccessFile;
 import java.util.HashMap;
 import java.util.Map;
 
-@Singleton
+@RequestScoped
 public class PortableFileSystem implements FileSystem {
 
     private BidiMap<Long, FileDescriptor> descriptors = new DualHashBidiMap<Long, FileDescriptor>();
@@ -130,9 +130,9 @@ public class PortableFileSystem implements FileSystem {
         } else if (realMessage.equals("Illegal seek")) {
             throw new IOException("ESPIPE");
         }
-        throw KExceptionManager.criticalError(
-            "Unrecognized OS errno. Please file an issue on the K framework issue tracker\n" +
-            "explaining precisely what you were trying to do");
+        throw KEMException.criticalError(
+                "Unrecognized OS errno. Please file an issue on the K framework issue tracker\n" +
+                        "explaining precisely what you were trying to do");
     }
 
     static void processIOException(IOException e) throws IOException {

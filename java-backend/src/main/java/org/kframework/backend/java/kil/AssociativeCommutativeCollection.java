@@ -10,20 +10,29 @@ import com.google.common.collect.Multisets;
  * Common parent for {@link org.kframework.backend.java.kil.BuiltinMap} and
  * {@link org.kframework.backend.java.kil.BuiltinSet}.
  */
-public abstract class AssociativeCommutativeCollection extends Collection {
+public abstract class AssociativeCommutativeCollection extends Collection implements KItemCollection {
 
     protected final ImmutableMultiset<KItem> collectionPatterns;
     protected final ImmutableMultiset<Term> collectionFunctions;
     protected final ImmutableMultiset<Variable> collectionVariables;
 
+    protected final GlobalContext global;
+
     protected AssociativeCommutativeCollection(
             ImmutableMultiset<KItem> collectionPatterns,
             ImmutableMultiset<Term> collectionFunctions,
-            ImmutableMultiset<Variable> collectionVariables) {
-        super(computeFrame(collectionPatterns, collectionFunctions, collectionVariables), Kind.KITEM);
+            ImmutableMultiset<Variable> collectionVariables,
+            GlobalContext global) {
+        super(computeFrame(
+                collectionPatterns,
+                collectionFunctions,
+                collectionVariables),
+                Kind.KITEM
+        );
         this.collectionPatterns = collectionPatterns;
         this.collectionVariables = collectionVariables;
         this.collectionFunctions = collectionFunctions;
+        this.global = global;
     }
 
     private static Variable computeFrame(
@@ -81,4 +90,10 @@ public abstract class AssociativeCommutativeCollection extends Collection {
     public final boolean isGround() {
         return isConcreteCollection() && super.isGround();
     }
+
+    @Override
+    public GlobalContext globalContext() {
+        return global;
+    }
+
 }

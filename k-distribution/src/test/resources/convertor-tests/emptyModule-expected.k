@@ -1,5 +1,3 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
-
-module TEST [location(startLine(#token(Int,"3")),startColumn(#token(Int,"1")),endLine(#token(Int,"5")),endColumn(#token(Int,"9")))]
-
+module TEST [Location(#token("3",Int),#token("1",Int),#token("5",Int),#token("9",Int)) Source(#token("src/test/resources/convertor-tests/emptyModule.k",KString))]
 endmodule

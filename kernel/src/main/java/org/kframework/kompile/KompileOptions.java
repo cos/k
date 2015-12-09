@@ -1,44 +1,48 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
 package org.kframework.kompile;
 
-import java.io.File;
-import java.io.Serializable;
-import java.util.*;
-
-import org.apache.commons.io.FilenameUtils;
-import org.kframework.backend.Backends;
-import org.kframework.main.GlobalOptions;
-import org.kframework.utils.errorsystem.KExceptionManager;
-import org.kframework.utils.file.FileUtil;
-import org.kframework.utils.options.SMTOptions;
-import org.kframework.utils.options.StringListConverter;
-
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParametersDelegate;
 import com.google.inject.Inject;
+import com.google.inject.Provider;
+import org.apache.commons.io.FilenameUtils;
+import org.kframework.backend.Backends;
+import org.kframework.main.GlobalOptions;
+import org.kframework.utils.errorsystem.KEMException;
+import org.kframework.utils.file.FileUtil;
+import org.kframework.utils.inject.RequestScoped;
+import org.kframework.utils.options.SMTOptions;
+import org.kframework.utils.options.StringListConverter;
 
+import java.io.File;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+@RequestScoped
 public class KompileOptions implements Serializable {
-
-    public KompileOptions() {}
-
-    //TODO(dwightguth): remove in Guice 4.0
-    @Inject
-    public KompileOptions(Void v) {}
 
     @Parameter(description="<file>")
     private List<String> parameters;
 
-    public File mainDefinitionFile() {
-        if (parameters == null || parameters.size() == 0) {
-            throw KExceptionManager.criticalError("You have to provide exactly one main file in order to compile.");
+    private File mainDefinitionFile;
+
+    public synchronized File mainDefinitionFile() {
+        if (mainDefinitionFile == null) {
+            if (parameters == null || parameters.size() == 0) {
+                throw KEMException.criticalError("You have to provide exactly one main file in order to compile.");
+            }
+            mainDefinitionFile = files.get().resolveWorkingDirectory(parameters.get(0));
         }
-        return files.resolveWorkingDirectory(parameters.get(0));
+        return mainDefinitionFile;
     }
 
-    private transient FileUtil files;
+    private transient Provider<FileUtil> files;
 
     @Inject
-    public void setFiles(FileUtil files) {
+    public void setFiles(Provider<FileUtil> files) {
         this.files = files;
     }
 
@@ -97,16 +101,27 @@ public class KompileOptions implements Serializable {
     }
 
     // Advanced options
-    @Parameter(names="--superheat", listConverter=StringListConverter.class, description="Specifies which syntactic constructs superheat the computation. To be used in combination with --supercool. <string> is a comma-separated list of production tags.")
+    @Parameter(names="--superheat", listConverter=StringListConverter.class, description="Specifies which syntactic constructs superheat the computation. To be used in combination with --supercool. <string> is a whitespace-separated list of production tags.")
     public List<String> superheat = Collections.singletonList("superheat");
 
-    @Parameter(names="--supercool", listConverter=StringListConverter.class, description="Specifies which rules supercool the computation. To be used in combination with --superheat. <string> is a comma-separated list of rule tags.")
+    @Parameter(names="--supercool", listConverter=StringListConverter.class, description="Specifies which rules supercool the computation. To be used in combination with --superheat. <string> is a whitespace-separated list of rule tags.")
     public List<String> supercool = Collections.singletonList("supercool");
 
-    @Parameter(names="--transition", listConverter=StringListConverter.class, description="<string> is a comma-separated list of tags designating rules to become transitions.")
+    @Parameter(names="--transition", listConverter=StringListConverter.class, description="<string> is a whitespace-separated list of tags designating rules to become transitions.")
     public List<String> transition = Collections.singletonList(DEFAULT_TRANSITION);
 
     public static final String DEFAULT_TRANSITION = "transition";
+
+    @Parameter(names="--non-strict", description="Do not add runtime sort checks for every variable's inferred sort.")
+    private boolean nonStrict;
+
+    public boolean strict() { return !nonStrict; }
+
+    @Parameter(names="-I", description="Add a directory to the search path for requires statements.", variableArity = true)
+    public List<String> includes = new ArrayList<>();
+
+    @Parameter(names="--no-prelude", description="Do not implicitly require prelude.k.")
+    public boolean noPrelude = false;
 
     @ParametersDelegate
     public Experimental experimental = new Experimental();
@@ -126,13 +141,13 @@ public class KompileOptions implements Serializable {
         @ParametersDelegate
         public SMTOptions smt = new SMTOptions();
 
-        @Parameter(names="--no-prelude", description="Do not include anything automatically.")
-        public boolean noPrelude = false;
-
         @Parameter(names="--documentation", listConverter=StringListConverter.class, description="<string> is a comma-separated list of tags designating rules to be included in the file generated with --backend=doc")
         public List<String> documentation = Collections.singletonList("documentation");
 
         @Parameter(names="--legacy-kast", description="Compile with settings based on the old KAST structure")
         public boolean legacyKast = false;
+
+        @Parameter(names="--kore-prove", description="Compile with the KORE pipeline for proving.")
+        public boolean koreProve = false;
     }
 }

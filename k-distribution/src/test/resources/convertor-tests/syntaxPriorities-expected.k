@@ -1,13 +1,12 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
-
-module TEST [location(startLine(#token(Int,"3")),startColumn(#token(Int,"1")),endLine(#token(Int,"12")),endColumn(#token(Int,"9")))]
-  syntax priority 'x > 'y 'z > 'm 't > 'u
-  syntax associativity right 'u
-  syntax associativity left 'm 't
-  syntax Foo ::= "z" [location(startLine(#token(Int,"6")),startColumn(#token(Int,"18")),endLine(#token(Int,"6")),endColumn(#token(Int,"20")))]
-  syntax Foo ::= "y" [location(startLine(#token(Int,"5")),startColumn(#token(Int,"18")),endLine(#token(Int,"5")),endColumn(#token(Int,"40"))) someattribute()]
-  syntax Foo ::= "x" [location(startLine(#token(Int,"4")),startColumn(#token(Int,"18")),endLine(#token(Int,"4")),endColumn(#token(Int,"20")))]
-  syntax Foo ::= "u" [location(startLine(#token(Int,"11")),startColumn(#token(Int,"18")),endLine(#token(Int,"11")),endColumn(#token(Int,"29"))) off()]
-  syntax Foo ::= "t" [andanohter() location(startLine(#token(Int,"8")),startColumn(#token(Int,"18")),endLine(#token(Int,"8")),endColumn(#token(Int,"36")))]
-  syntax Foo ::= "m" [location(startLine(#token(Int,"9")),startColumn(#token(Int,"18")),endLine(#token(Int,"9")),endColumn(#token(Int,"20")))]
+module TEST [Location(#token("3",Int),#token("1",Int),#token("12",Int),#token("9",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString))]
+  syntax priority x > y z > t m > u
+  syntax associativity right u
+  syntax associativity left t m
+  syntax Foo ::= "z" [Location(#token("6",Int),#token("18",Int),#token("6",Int),#token("20",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString)) klabel(#token("z",KString))]
+  syntax Foo ::= "y" [Location(#token("5",Int),#token("18",Int),#token("5",Int),#token("40",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString)) klabel(#token("y",KString)) someattribute(#token("",AttributeValue))]
+  syntax Foo ::= "x" [Location(#token("4",Int),#token("18",Int),#token("4",Int),#token("20",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString)) klabel(#token("x",KString))]
+  syntax Foo ::= "u" [Location(#token("11",Int),#token("18",Int),#token("11",Int),#token("29",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString)) klabel(#token("u",KString)) off(#token("",AttributeValue))]
+  syntax Foo ::= "t" [Location(#token("8",Int),#token("18",Int),#token("8",Int),#token("36",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString)) andanohter(#token("",AttributeValue)) klabel(#token("t",KString))]
+  syntax Foo ::= "m" [Location(#token("9",Int),#token("18",Int),#token("9",Int),#token("20",Int)) Source(#token("src/test/resources/convertor-tests/syntaxPriorities.k",KString)) klabel(#token("m",KString))]
 endmodule

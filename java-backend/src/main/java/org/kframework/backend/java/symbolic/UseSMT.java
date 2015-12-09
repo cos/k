@@ -37,10 +37,10 @@ public class UseSMT implements Serializable {
             return null;
         }
 
-        BuiltinMap.Builder resultBuilder = BuiltinMap.builder();
+        BuiltinMap.Builder resultBuilder = BuiltinMap.builder(termContext.global());
         try {
-            SymbolicConstraint constraint = new SymbolicConstraint(termContext);
-            constraint.add(term, BoolToken.TRUE);
+            ConjunctiveFormula constraint = ConjunctiveFormula.of(termContext.global())
+                    .add(term, BoolToken.TRUE);
             com.microsoft.z3.Context context = new com.microsoft.z3.Context();
             Solver solver = context.mkSolver();
             BoolExpr query = context.parseSMTLIB2String(

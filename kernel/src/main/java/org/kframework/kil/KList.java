@@ -1,9 +1,9 @@
 // Copyright (c) 2012-2015 K Team. All Rights Reserved.
 package org.kframework.kil;
 
-import org.kframework.kil.loader.JavaClassesFactory;
+import org.kframework.attributes.Location;
+import org.kframework.attributes.Source;
 import org.kframework.kil.visitors.Visitor;
-import org.w3c.dom.Element;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -20,10 +20,6 @@ public class KList extends Collection {
 
     public KList(Location location, Source source) {
         super(location, source, Sort.KLIST);
-    }
-
-    public KList(Element element, JavaClassesFactory factory) {
-        super(element, factory);
     }
 
     public KList(KList node) {

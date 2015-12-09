@@ -4,15 +4,13 @@ package org.kframework.backend.java.kil;
 import org.kframework.backend.java.builtins.BoolToken;
 import org.kframework.backend.java.builtins.FloatToken;
 import org.kframework.backend.java.builtins.IntToken;
+import org.kframework.backend.java.builtins.StringToken;
 import org.kframework.backend.java.builtins.UninterpretedToken;
-import org.kframework.backend.java.symbolic.Matcher;
 import org.kframework.backend.java.symbolic.Transformer;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.kil.ASTNode;
-
-import java.util.Collections;
-import java.util.Set;
+import org.kframework.kore.KToken;
+import org.kframework.utils.StringUtil;
 
 
 /**
@@ -20,7 +18,7 @@ import java.util.Set;
  *
  * @author AndreiS
  */
-public abstract class Token extends Term implements Immutable {
+public abstract class Token extends Term implements KoreRepresentation, Immutable, KToken {
 
     public static Token of(Sort sort, String value) {
         if (sort.equals(BoolToken.SORT)) {
@@ -29,6 +27,8 @@ public abstract class Token extends Term implements Immutable {
             return IntToken.of(value);
         } else if (sort.equals(FloatToken.SORT)) {
             return FloatToken.of(value);
+        } else if (sort.equals(StringToken.SORT)) {
+            return StringToken.of(StringUtil.unquoteKString(value));
         } else {
             return UninterpretedToken.of(sort, value);
         }
@@ -46,6 +46,11 @@ public abstract class Token extends Term implements Immutable {
     @Override
     public abstract Sort sort();
 
+    @Override
+    public String s() {
+        return value();
+    }
+
     /**
      * Returns a {@code String} representation of the (uninterpreted) value of this token.
      */
@@ -62,23 +67,13 @@ public abstract class Token extends Term implements Immutable {
     }
 
     @Override
-    public Set<Variable> variableSet() {
-        return Collections.emptySet();
-    }
-
-    @Override
     protected final boolean computeMutability() {
         return false;
     }
 
     @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
+    public Token toKore() {
+        return this;
     }
 
     @Override

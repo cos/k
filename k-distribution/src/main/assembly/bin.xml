@@ -29,9 +29,6 @@
           <include>*:so:*</include>
           <include>*:dylib:*</include>
         </includes>
-        <excludes>
-          <exclude>*:cygwin1:dll:*</exclude>
-        </excludes>
         <outputFileNameMapping>${artifact.classifier}/${artifact.artifactId}.${artifact.type}</outputFileNameMapping>
       </dependencySet>
     </dependencySets>
@@ -45,6 +42,8 @@
         <include>samples/**</include>
         <include>tutorial/**</include>
         <include>editor-support/**</include>
+        <include>INSTALL*</include>
+        <include>README*</include>
       </includes>
       <excludes>
         <exclude>**/.*/**</exclude>
@@ -55,9 +54,7 @@
       <directory>${project.parent.basedir}</directory>
       <outputDirectory>/</outputDirectory>
       <includes>
-        <include>INSTALL*</include>
         <include>LICENSE*</include>
-        <include>README*</include>
         <include>CHANGELOG*</include>
       </includes>
     </fileSet>

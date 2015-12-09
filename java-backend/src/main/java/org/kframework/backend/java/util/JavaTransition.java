@@ -5,6 +5,8 @@ import org.kframework.backend.java.kil.Rule;
 
 import org.kframework.backend.java.symbolic.BackendJavaKILtoKILTransformer;
 import org.kframework.kil.ASTNode;
+import org.kframework.attributes.Source;
+import org.kframework.attributes.Location;
 import org.kframework.kil.Term;
 import org.kframework.kil.Variable;
 import org.kframework.kil.loader.Context;
@@ -21,14 +23,14 @@ public class JavaTransition extends Transition {
     /**
      * Backend specific Rule converted lazily to generic rule on get()
      */
-    private Rule javaRule;
+    private final Rule javaRule;
 
     /**
      * Backend specific Substitution converted lazily to generic substitution on get()
      */
-    private Map<org.kframework.backend.java.kil.Variable, org.kframework.backend.java.kil.Term> javaSubs;
+    private final Map<org.kframework.backend.java.kil.Variable, org.kframework.backend.java.kil.Term> javaSubs;
 
-    private Context context;
+    private final Context context;
 
     public JavaTransition(Rule javaRule,
                           Map<org.kframework.backend.java.kil.Variable, org.kframework.backend.java.kil.Term> javaSubs,
@@ -67,6 +69,16 @@ public class JavaTransition extends Transition {
         }
         substitution = genericSubs;
         return substitution;
+    }
+
+    @Override
+    public Location getLocation() {
+        return javaRule.getLocation();
+    }
+
+    @Override
+    public Source getSource() {
+        return javaRule.getSource();
     }
 
 }

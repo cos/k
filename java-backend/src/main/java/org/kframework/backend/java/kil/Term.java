@@ -1,22 +1,18 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.kil;
 
+import org.kframework.attributes.Att;
+import org.kframework.attributes.Location;
+import org.kframework.attributes.Source;
 import org.kframework.backend.java.indexing.IndexingPair;
 import org.kframework.backend.java.symbolic.BottomUpVisitor;
 import org.kframework.backend.java.symbolic.CopyOnShareSubstAndEvalTransformer;
 import org.kframework.backend.java.symbolic.Evaluator;
-import org.kframework.backend.java.symbolic.Matchable;
-import org.kframework.backend.java.symbolic.PatternExpander;
 import org.kframework.backend.java.symbolic.SubstituteAndEvaluateTransformer;
-import org.kframework.backend.java.symbolic.SymbolicConstraint;
-import org.kframework.backend.java.symbolic.Transformable;
-import org.kframework.backend.java.symbolic.Unifiable;
-import org.kframework.backend.java.util.Utils;
-import org.kframework.kil.Location;
-import org.kframework.kil.Source;
+import org.kframework.backend.java.util.Constants;
+import org.kframework.kore.convertors.KILtoInnerKORE;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +23,8 @@ import java.util.Set;
  *
  * @author AndreiS
  */
-public abstract class Term extends JavaSymbolicObject implements Transformable, Matchable, Unifiable, Comparable<Term> {
+public abstract class Term extends JavaSymbolicObject<Term> implements Comparable<Term>,
+        org.kframework.kore.K {
 
     protected final Kind kind;
     // protected final boolean normalized;
@@ -84,10 +81,11 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
      *         {@code false}
      */
     public final boolean isMutable() {
-        if (mutable == null) {
-            mutable = computeMutability();
+        Boolean m = mutable;
+        if (m == null) {
+            mutable = m = computeMutability();
         }
-        return mutable;
+        return m;
     }
 
     /**
@@ -98,28 +96,9 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
     /**
      * Returns a new {@code Term} instance obtained from this term by evaluating
      * pending functions and predicates. <br>
-     * TODO(YilongL): gradually eliminate the use of this method and switch to
-     * the one with constraint, i.e., {@link this#evaluate(SymbolicConstraint,
-     * TermContext)}.
      */
     public Term evaluate(TermContext context) {
         return Evaluator.evaluate(this, context);
-    }
-
-    /**
-     * Returns a new {@code Term} instance obtained from this term by applying a binder insensitive substitution.
-     */
-    @Override
-    public Term substitute(Map<Variable, ? extends Term> substitution, TermContext context) {
-        return (Term) super.substitute(substitution, context);
-    }
-
-    /**
-     * Returns a new {@code Term} instance obtained from this term by applying a binder-aware substitution.
-     */
-    @Override
-    public Term substituteWithBinders(Map<Variable, ? extends Term> substitution, TermContext context) {
-        return (Term) super.substituteWithBinders(substitution, context);
     }
 
     /**
@@ -165,16 +144,6 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
     }
 
     /**
-     * Similar to {@link Term#copyOnShareSubstAndEval(Map, Set, TermContext)}
-     * except the empty reusable variable set.
-     *
-     * @see {@link Term#copyOnShareSubstAndEval(Map, Set, TermContext)}
-     */
-    public Term copyOnShareSubstAndEval(Map<Variable, ? extends Term> substitution, TermContext context) {
-        return copyOnShareSubstAndEval(substitution, Collections.<Variable>emptySet(), context);
-    }
-
-    /**
      * Returns a list containing the contents of each occurrence of a cell with the given name.
      *
      * Warning: this is slow!
@@ -196,20 +165,6 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
             }
         });
         return contents;
-    }
-
-     /**
-     * Returns a new {@code Term} instance obtained from this term by substituting variable with
-     * term.
-     */
-    @Override
-    public Term substituteWithBinders(Variable variable, Term term, TermContext context) {
-        return (Term) super.substituteWithBinders(variable, term, context);
-    }
-
-    public Term expandPatterns(SymbolicConstraint constraint, boolean narrowing) {
-        PatternExpander expander = new PatternExpander(constraint, narrowing);
-        return (Term) this.accept(expander);
     }
 
     @Override
@@ -235,11 +190,13 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
      */
     @Override
     public final int hashCode() {
-        if (hashCode == Utils.NO_HASHCODE) {
-            hashCode = computeHash();
-            hashCode = hashCode == 0 ? 1 : hashCode;
+        int h = hashCode;
+        if (h == Constants.NO_HASHCODE && !isMutable()) {
+            h = computeHash();
+            h = h == 0 ? 1 : h;
+            hashCode = h;
         }
-        return hashCode;
+        return h;
     }
 
     /**
@@ -250,4 +207,11 @@ public abstract class Term extends JavaSymbolicObject implements Transformable, 
 
     @Override
     public abstract boolean equals(Object object);
+
+    public Att att() {
+        return new KILtoInnerKORE(null, true).convertAttributes(this);
+    }
+
+    public Location location() { return getLocation(); }
+    public Source source() { return getSource(); }
 }

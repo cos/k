@@ -1,313 +1,338 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.symbolic;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import org.kframework.backend.java.builtins.BoolToken;
-import org.kframework.backend.java.builtins.FreshOperations;
-import org.kframework.backend.java.builtins.MetaK;
-import org.kframework.backend.java.indexing.RuleIndex;
-import org.kframework.backend.java.kil.CellLabel;
-import org.kframework.backend.java.kil.ConstrainedTerm;
-import org.kframework.backend.java.kil.Definition;
-import org.kframework.backend.java.kil.KSequence;
-import org.kframework.backend.java.kil.Rule;
-import org.kframework.backend.java.kil.Term;
-import org.kframework.backend.java.kil.TermContext;
-import org.kframework.backend.java.kil.Variable;
-import org.kframework.backend.java.strategies.TransitionCompositeStrategy;
-import org.kframework.backend.java.util.Coverage;
-import org.kframework.backend.java.util.JavaKRunState;
-import org.kframework.backend.java.util.JavaTransition;
-import org.kframework.kil.loader.Context;
-import org.kframework.kompile.KompileOptions;
-import org.kframework.krun.api.KRunGraph;
-import org.kframework.krun.api.KRunState;
-import org.kframework.krun.api.SearchType;
-import org.kframework.utils.errorsystem.KExceptionManager.KEMException;
-
 import com.google.common.base.Stopwatch;
-import com.google.common.collect.BiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.inject.Inject;
+import org.apache.commons.lang3.tuple.Pair;
+import org.kframework.backend.java.builtins.BoolToken;
+import org.kframework.backend.java.builtins.FreshOperations;
+import org.kframework.backend.java.builtins.MetaK;
+import org.kframework.backend.java.indexing.RuleIndex;
+import org.kframework.backend.java.kil.*;
+import org.kframework.backend.java.strategies.TransitionCompositeStrategy;
+import org.kframework.backend.java.util.Coverage;
+import org.kframework.backend.java.util.JavaKRunState;
+import org.kframework.kompile.KompileOptions;
+import org.kframework.krun.api.KRunState;
+import org.kframework.utils.BitSet;
+import org.kframework.utils.errorsystem.KEMException;
+import org.kframework.rewriter.SearchType;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- *
- *
  * @author AndreiS
- *
  */
 public class SymbolicRewriter {
 
-    private final Definition definition;
     private final JavaExecutionOptions javaOptions;
     private final TransitionCompositeStrategy strategy;
     private final Stopwatch stopwatch = Stopwatch.createUnstarted();
-    private int step;
-    private final Stopwatch ruleStopwatch = Stopwatch.createUnstarted();
-    private final List<ConstrainedTerm> results = Lists.newArrayList();
-    private final List<Rule> appliedRules = Lists.newArrayList();
-    private final List<Map<Variable, Term>> substitutions = Lists.newArrayList();
-    private KRunGraph executionGraph = null;
     private boolean transition;
-    private RuleIndex ruleIndex;
-    private KRunState.Counter counter;
+    private final RuleIndex ruleIndex;
+    private final KRunState.Counter counter;
+    private final Map<ConstrainedTerm, Set<Rule>> subject2DisabledRules = new HashMap<>();
+    private final FastRuleMatcher theFastMatcher;
+    private final Definition definition;
+    private final BitSet allRuleBits;
+
+    private final boolean useFastRewriting;
 
     @Inject
-    public SymbolicRewriter(Definition definition, KompileOptions kompileOptions, JavaExecutionOptions javaOptions,
+    public SymbolicRewriter(GlobalContext global, KompileOptions kompileOptions, JavaExecutionOptions javaOptions,
                             KRunState.Counter counter) {
-        this.definition = definition;
+        this.definition = global.getDefinition();
+        this.allRuleBits = BitSet.apply(definition.ruleTable.size());
+        this.allRuleBits.makeOnes(definition.ruleTable.size());
         this.javaOptions = javaOptions;
-        ruleIndex = definition.getIndex();
+        this.ruleIndex = definition.getIndex();
         this.counter = counter;
         this.strategy = new TransitionCompositeStrategy(kompileOptions.transition);
+        this.useFastRewriting = !kompileOptions.experimental.koreProve;
+        this.theFastMatcher = new FastRuleMatcher(global, allRuleBits.length());
     }
 
-    public KRunGraph getExecutionGraph() {
-        return executionGraph;
-    }
-
-    public KRunState rewrite(ConstrainedTerm constrainedTerm, int bound, boolean computeGraph) {
+    public KRunState rewrite(ConstrainedTerm constrainedTerm, int bound) {
         stopwatch.start();
-        Context context = definition.context();
-        KRunState initialState = null;
-        if (computeGraph) {
-            executionGraph = new KRunGraph();
-            initialState = new JavaKRunState(constrainedTerm.term(), context, counter);
-            executionGraph.addVertex(initialState);
-        }
-        for (step = 0; step != bound; ++step) {
+        int step = 0;
+        List<ConstrainedTerm> results;
+        while (step != bound && !(results = computeRewriteStep(constrainedTerm, step, true)).isEmpty()) {
             /* get the first solution */
-            computeRewriteStep(constrainedTerm, 1);
-            ConstrainedTerm result = getTransition(0);
-            KRunState finalState = null;
-            if (result != null) {
-                if (computeGraph) {
-                    finalState = new JavaKRunState(result.term(), context, counter);
-                    JavaTransition javaTransition = new JavaTransition(
-                            getRule(0), getSubstitution(0), context);
-                    executionGraph.addEdge(javaTransition, initialState, finalState);
-                }
-                constrainedTerm = result;
-            } else {
-                if (computeGraph) {
-                    initialState = finalState;
-                }
-                break;
-            }
+            constrainedTerm = results.get(0);
+            step++;
         }
+        KRunState finalState = new JavaKRunState(constrainedTerm, counter, Optional.of(step));
 
         stopwatch.stop();
-        if (definition.context().krunOptions.experimental.statistics) {
-            System.err.println("[" + step + ", " + stopwatch + "]");
+        if (constrainedTerm.termContext().global().krunOptions.experimental.statistics) {
+            System.err.println("[" + step + ", " + stopwatch + " ]");
         }
 
-        if (initialState == null) {
-            initialState = new JavaKRunState(constrainedTerm.term(), context, counter);
-        }
-        return initialState;
+        return finalState;
     }
 
-    /**
-     * Gets the rules that could be applied to a given term according to the
-     * rule indexing mechanism.
-     *
-     * @param term
-     *            the given term
-     * @return a list of rules that could be applied
-     */
-    private List<Rule> getRules(Term term) {
-        return ruleIndex.getRules(term);
+    private List<ConstrainedTerm> computeRewriteStep(ConstrainedTerm constrainedTerm, int step, boolean computeOne) {
+        return useFastRewriting ?
+                fastComputeRewriteStep(constrainedTerm, computeOne) :
+                slowComputeRewriteStep(constrainedTerm, step, computeOne);
     }
 
-    private ConstrainedTerm getTransition(int n) {
-        return n < results.size() ? results.get(n) : null;
-    }
-
-    private Rule getRule(int n) {
-        return n < appliedRules.size() ? appliedRules.get(n) : null;
-    }
-
-    private Map<Variable, Term> getSubstitution(int n) {
-        return n < substitutions.size() ? substitutions.get(n) : null;
-    }
-
-
-    private void computeRewriteStep(ConstrainedTerm constrainedTerm) {
-        computeRewriteStep(constrainedTerm, -1);
-    }
-
-    private void computeRewriteStep(ConstrainedTerm subject, int successorBound) {
-        results.clear();
-        appliedRules.clear();
-        substitutions.clear();
-        if (successorBound == 0) {
-            return;
-        }
-
+    private List<ConstrainedTerm> slowComputeRewriteStep(ConstrainedTerm subject, int step, boolean computeOne) {
         RuleAuditing.setAuditingRule(javaOptions, step, subject.termContext().definition());
-
-        // Applying a strategy to a list of rules divides the rules up into
-        // equivalence classes of rules. We iterate through these equivalence
-        // classes one at a time, seeing which one contains rules we can apply.
-        strategy.reset(getRules(subject.term()));
-
         try {
+            subject.termContext().setTopTerm(subject.term());
+            /* rules that are failed to apply on subject */
+            Set<Rule> failedRules = new HashSet<>(subject2DisabledRules.getOrDefault(subject, Collections.emptySet()));
+            /* resulting terms after rewriting */
+            List<ConstrainedTerm> results = new ArrayList<>();
 
-            while (strategy.hasNext()) {
+            // Applying a strategy to a list of rules divides the rules up into
+            // equivalence classes of rules. We iterate through these equivalence
+            // classes one at a time, seeing which one contains rules we can apply.
+            for (strategy.reset(ruleIndex.getRules(subject.term())); strategy.hasNext(); ) {
                 transition = strategy.nextIsTransition();
-                ArrayList<Rule> rules = Lists.newArrayList(strategy.next());
-    //            System.out.println("rules.size: " + rules.size());
-                for (Rule rule : rules) {
-                    try {
-                        ruleStopwatch.reset();
-                        ruleStopwatch.start();
+                Set<Rule> rules = new LinkedHashSet<>(strategy.next());
+                rules.removeAll(failedRules);
 
-                        if (rule == RuleAuditing.getAuditingRule()) {
-                            RuleAuditing.beginAudit();
-                        } else if (RuleAuditing.isAuditBegun() && RuleAuditing.getAuditingRule() == null) {
-                            System.err.println("\nAuditing " + rule + "...\n");
+                Map<Rule, List<ConstrainedTerm>> rule2Results;
+                if (computeOne || !transition) {
+                    rule2Results = Collections.emptyMap();
+                    for (Rule rule : rules) {
+                        List<ConstrainedTerm> terms = computeRewriteStepByRule(subject, rule);
+                        if (!terms.isEmpty()) {
+                            rule2Results = Collections.singletonMap(rule, terms);
+                            results.add(terms.get(0));
+                            break;
+                        } else {
+                            failedRules.add(rule);
                         }
-
-                        ConstrainedTerm pattern = buildPattern(rule, subject.termContext());
-
-                        for (SymbolicConstraint unifConstraint : subject.unify(pattern)) {
-                            RuleAuditing.succeed(rule);
-                            /* compute all results */
-                            ConstrainedTerm result = buildResult(
-                                    rule,
-                                    unifConstraint);
-                            results.add(result);
-                            appliedRules.add(rule);
-                            substitutions.add(unifConstraint.substitution());
-                            Coverage.print(definition.context().krunOptions.experimental.coverage, subject);
-                            Coverage.print(definition.context().krunOptions.experimental.coverage, rule);
-                            if (results.size() == successorBound) {
-                                return;
-                            }
-                        }
-                    } catch (KEMException e) {
-                        e.exception.addTraceFrame("while evaluating rule at " + rule.getSource() + rule.getLocation());
-                        throw e;
-                    } finally {
-                        if (RuleAuditing.isAuditBegun()) {
-                            if (RuleAuditing.getAuditingRule() == rule) {
-                                RuleAuditing.endAudit();
-                            }
-                            if (!RuleAuditing.isSuccess()
-                                    && RuleAuditing.getAuditingRule() == rule) {
-                                throw RuleAuditing.fail();
-                            }
+                    }
+                } else {
+                    rule2Results = rules.stream().collect(
+                            Collectors.toMap(r -> r, r -> computeRewriteStepByRule(subject, r),
+                                    (u, v) -> u, IdentityHashMap::new));
+                    for (Rule rule : rules) {
+                        if (rule2Results.get(rule).isEmpty()) {
+                            failedRules.add(rule);
+                        } else {
+                            results.addAll(rule2Results.get(rule));
                         }
                     }
                 }
+
                 // If we've found matching results from one equivalence class then
                 // we are done, as we can't match rules from two equivalence classes
                 // in the same step.
-                if (results.size() > 0) {
-                    return;
+                if (!results.isEmpty()) {
+                    /* compute disabled rules for the resulting terms */
+                    subject2DisabledRules.remove(subject);
+                    rule2Results.forEach((appliedRule, terms) -> {
+                        // if the latest applied rule doesn't modify the read cells of a failing rule,
+                        // that failing rule is deemed to fail again when applied on the new term
+                        Set<Rule> rulesWillFail = failedRules.stream()
+                                .filter(failedRule -> failedRule.isCompiledForFastRewriting() &&
+                                        appliedRule.isCompiledForFastRewriting() &&
+                                        Collections.disjoint(failedRule.readCells(), appliedRule.writeCells()))
+                                .collect(Collectors.toSet());
+                        terms.forEach(t -> subject2DisabledRules.put(t, rulesWillFail));
+                    });
+                    break;
                 }
             }
+            return results;
         } finally {
             RuleAuditing.clearAuditingRule();
         }
     }
 
-    /**
-     * Builds the pattern term used in unification by composing the left-hand
-     * side of a specified rule and its preconditions.
-     *
-     * @param rule
-     *            the specified rule
-     * @param termContext
-     *            the term context
-     * @return the pattern term
-     */
-    private static ConstrainedTerm buildPattern(Rule rule, TermContext termContext) {
-        SymbolicConstraint constraint = rule.lookups().getSymbolicConstraint(termContext);
-        constraint.addAll(rule.requires());
-        return new ConstrainedTerm(rule.leftHandSide(), constraint);
+
+    private List<ConstrainedTerm> fastComputeRewriteStep(ConstrainedTerm subject, boolean computeOne) {
+        List<ConstrainedTerm> results = new ArrayList<>();
+        List<Pair<Substitution<Variable, Term>, Integer>> matches = theFastMatcher.mainMatch(
+                subject.term(),
+                definition.automaton.leftHandSide(),
+                allRuleBits,
+                computeOne,
+                subject.termContext());
+        for (Pair<Substitution<Variable, Term>, Integer> pair : matches) {
+            Substitution<Variable, Term> substitution = pair.getLeft();
+            // start the optimized substitution
+
+            // get a map from AST paths to (fine-grained, inner) rewrite RHSs
+            Map<scala.collection.immutable.List<Integer>, Term> rewrites = theFastMatcher.getRewrite(pair.getRight());
+
+            assert (rewrites.size() > 0);
+
+            Term theNew;
+            if (rewrites.size() == 1)
+                // use the more efficient implementation if we only have one rewrite
+                theNew = buildRHS(subject.term(), substitution, rewrites.keySet().iterator().next(),
+                        rewrites.values().iterator().next(), subject.termContext());
+            else
+                theNew = buildRHS(subject.term(), substitution,
+                        rewrites.entrySet().stream().map(e -> Pair.of(e.getKey(), e.getValue())).collect(Collectors.toList()),
+                        subject.termContext());
+
+            Rule rule = definition.ruleTable.get(pair.getRight());
+
+            /* get fresh substitutions of rule variables */
+            Map<Variable, Variable> renameSubst = Variable.rename(rule.variableSet());
+
+            /* rename rule variables in the term */
+            theNew = theNew.substituteWithBinders(renameSubst);
+
+            results.add(new ConstrainedTerm(theNew, subject.termContext()));
+        }
+        return results;
     }
 
     /**
-     * Builds the result of rewrite by applying the resulting symbolic
-     * constraint of unification to the right-hand side of the rewrite rule.
-     *
-     * @param rule
-     *            the rewrite rule
-     * @param constraint
-     *            the resulting symbolic constraint of unification
-     * @return the new subject term
+     * goes down the path on the subject to find the rewrite place, does the substitution, and reconstructs the term
+     * on its way up
+     */
+    private Term buildRHS(Term subject, Substitution<Variable, Term> substitution, scala.collection.immutable.List<Integer> path, Term rhs, TermContext context) {
+        if (path.isEmpty()) {
+            return rhs.substituteAndEvaluate(substitution, context);
+        } else {
+            KItem kItemSubject = (KItem) subject;
+            List<Term> newContents = new ArrayList<>(((KList) kItemSubject.kList()).getContents());
+            newContents.set(path.head(), buildRHS(newContents.get(path.head()), substitution, (scala.collection.immutable.List<Integer>) path.tail(), rhs, context));
+            return KItem.of(kItemSubject.kLabel(), KList.concatenate(newContents), context.global()).applyAnywhereRules(false, context);
+        }
+    }
+
+    /**
+     * goes down each of the the paths on the subject to find the rewrite place, does the substitution,
+     * and reconstructs the term on its way up
+     */
+    private Term buildRHS(Term subject, Substitution<Variable, Term> substitution, List<Pair<scala.collection.immutable.List<Integer>, Term>> rewrites, TermContext context) {
+        if (rewrites.size() == 1 && rewrites.get(0).getLeft().isEmpty()) {
+            return rewrites.get(0).getRight().substituteAndEvaluate(substitution, context);
+        }
+
+        KItem kItemSubject = (KItem) subject;
+
+        Map<Integer, List<Pair<scala.collection.immutable.List<Integer>, Term>>> commonPath = rewrites.stream().collect(Collectors.groupingBy(rw -> rw.getLeft().head()));
+
+        List<Term> contents = ((KList) kItemSubject.kList()).getContents();
+        List<Term> newContents = new ArrayList<>();
+
+        for (int i = 0; i < contents.size(); i++) {
+            if (commonPath.containsKey(i)) {
+                List<Pair<scala.collection.immutable.List<Integer>, Term>> theInnerRewrites = commonPath.get(i).stream().map(p -> Pair.of(
+                        (scala.collection.immutable.List<Integer>) p.getLeft().tail(), p.getRight())).collect(Collectors.toList());
+                newContents.add(buildRHS(contents.get(i), substitution, theInnerRewrites, context));
+            } else {
+                newContents.add(contents.get(i));
+            }
+        }
+
+        return KItem.of(kItemSubject.kLabel(), KList.concatenate(newContents), context.global()).applyAnywhereRules(false, context);
+    }
+
+    private List<ConstrainedTerm> computeRewriteStepByRule(ConstrainedTerm subject, Rule rule) {
+        List<ConstrainedTerm> results = Collections.emptyList();
+        try {
+            if (rule == RuleAuditing.getAuditingRule()) {
+                RuleAuditing.beginAudit();
+            } else if (RuleAuditing.isAuditBegun() && RuleAuditing.getAuditingRule() == null) {
+                System.err.println("\nAuditing " + rule + "...\n");
+            }
+
+            return results = subject.unify(rule.createLhsPattern(subject.termContext()),
+                    rule.matchingInstructions(), rule.lhsOfReadCell(), rule.matchingVariables())
+                    .stream()
+                    .map(s -> buildResult(rule, s.getLeft(), subject.term(), !s.getRight(), subject.termContext()))
+                    .collect(Collectors.toList());
+        } catch (KEMException e) {
+            e.exception.addTraceFrame("while evaluating rule at " + rule.getSource() + rule.getLocation());
+            throw e;
+        } finally {
+            if (!results.isEmpty()) {
+                RuleAuditing.succeed(rule);
+                Coverage.print(subject.termContext().global().krunOptions.experimental.coverage, subject);
+                Coverage.print(subject.termContext().global().krunOptions.experimental.coverage, rule);
+            }
+
+            if (RuleAuditing.isAuditBegun()) {
+                if (RuleAuditing.getAuditingRule() == rule) {
+                    RuleAuditing.endAudit();
+                }
+                if (!RuleAuditing.isSuccess()
+                        && RuleAuditing.getAuditingRule() == rule) {
+                    throw RuleAuditing.fail();
+                }
+            }
+        }
+    }
+
+    /**
+     * Builds the result of rewrite based on the unification constraint.
+     * It applies the unification constraint on the right-hand side of the rewrite rule,
+     * if the rule is not compiled for fast rewriting.
+     * It uses build instructions, if the rule is compiled for fast rewriting.
      */
     public static ConstrainedTerm buildResult(
             Rule rule,
-            SymbolicConstraint constraint) {
-        return buildResult(rule, constraint, false);
-    }
-
-    private static ConstrainedTerm buildResult(Rule rule,
-            SymbolicConstraint constraint, boolean expandPattern) {
+            ConjunctiveFormula constraint,
+            Term subject,
+            boolean expandPattern,
+            TermContext context) {
         for (Variable variable : rule.freshConstants()) {
-            constraint.add(variable, FreshOperations.fresh(variable.sort(), constraint.termContext()));
+            constraint = constraint.add(
+                    variable,
+                    FreshOperations.freshOfSort(variable.sort(), context));
         }
-        constraint.addAllThenSimplify(rule.ensures());
+        constraint = constraint.addAll(rule.ensures()).simplify(context);
+
+        Term term;
+
+        /* apply the constraints substitution on the rule RHS */
+        context.setTopConstraint(constraint);
+        Set<Variable> substitutedVars = Sets.union(rule.freshConstants(), rule.matchingVariables());
+        constraint = constraint.orientSubstitution(substitutedVars);
+        if (rule.isCompiledForFastRewriting()) {
+            term = AbstractKMachine.apply((CellCollection) subject, constraint.substitution(), rule, context);
+        } else {
+            term = rule.rightHandSide().substituteAndEvaluate(constraint.substitution(), context);
+        }
+
+        /* eliminate bindings of the substituted variables */
+        constraint = constraint.removeBindings(substitutedVars);
 
         /* get fresh substitutions of rule variables */
-        BiMap<Variable, Variable> freshSubstitution = Variable.getFreshSubstitution(rule.variableSet());
+        Map<Variable, Variable> renameSubst = Variable.rename(rule.variableSet());
 
-        /* rename rule variables in the constraints */
-        /* TODO(YilongL): implement a faster rename method in
-         * SymbolicConstraint which do not require calling simplify after */
-        constraint = (SymbolicConstraint) constraint.substituteWithBinders(freshSubstitution, constraint.termContext());
-        constraint.simplify();
+        /* rename rule variables in both the term and the constraint */
+        term = term.substituteWithBinders(renameSubst);
+        constraint = ((ConjunctiveFormula) constraint.substituteWithBinders(renameSubst)).simplify(context);
 
-        /* rename rule variables in the rule RHS */
-        Term term = rule.rightHandSide().substituteWithBinders(freshSubstitution, constraint.termContext());
-        /* apply the constraints substitution on the rule RHS */
-        constraint.orientSubstitution(rule.boundVariables().stream()
-                .map(p -> freshSubstitution.get(p))
-                .collect(Collectors.toSet()));
-        term = term.substituteAndEvaluate(
-                constraint.substitution(),
-                constraint.termContext());
-        /* eliminate bindings of rule variables */
-        constraint.removeBindings(freshSubstitution.values());
-
+        ConstrainedTerm result = new ConstrainedTerm(term, constraint, context);
         if (expandPattern) {
-            // TODO(AndreiS): move these some other place
-            constraint.expandPatternsAndSimplify(true);
-            term = term.expandPatterns(constraint, true);
-//            System.err.println(rule.getLocation() + " " + rule.getSource());
-        }
-
-        return new ConstrainedTerm(term, constraint);
-    }
-
-    /**
-     * Apply a specification rule
-     */
-    private ConstrainedTerm applyRule(ConstrainedTerm constrainedTerm, List<Rule> rules) {
-        for (Rule rule : rules) {
-            ruleStopwatch.reset();
-            ruleStopwatch.start();
-
-            ConstrainedTerm leftHandSideTerm = buildPattern(rule, constrainedTerm.termContext());
-            SymbolicConstraint constraint = constrainedTerm.matchImplies(leftHandSideTerm);
-            if (constraint == null) {
-                continue;
+            if (rule.isCompiledForFastRewriting()) {
+                result = new ConstrainedTerm(term.substituteAndEvaluate(constraint.substitution(), context), constraint, context);
             }
-
-            return buildResult(rule, constraint, true);
+            // TODO(AndreiS): move these some other place
+            result = result.expandPatterns(true);
+            if (result.constraint().isFalse() || result.constraint().checkUnsat()) {
+                result = null;
+            }
         }
 
-        return null;
+        return result;
     }
 
     /**
@@ -315,11 +340,18 @@ public class SymbolicRewriter {
      * the pattern to the terms they unify with. Adds as many search results
      * up to the bound as were found, and returns {@code true} if the bound has been reached.
      */
-    private boolean addSearchResult(List<Map<Variable, Term>> searchResults, ConstrainedTerm initialTerm, Rule pattern, int bound) {
+    private static boolean addSearchResult(
+            List<Substitution<Variable, Term>> searchResults,
+            ConstrainedTerm initialTerm,
+            Rule pattern,
+            int bound) {
         assert Sets.intersection(initialTerm.term().variableSet(),
                 initialTerm.constraint().substitution().keySet()).isEmpty();
-        List<Map<Variable, Term>> discoveredSearchResults = PatternMatcher.match(initialTerm.term(), pattern, initialTerm.termContext());
-        for (Map<Variable, Term> searchResult : discoveredSearchResults) {
+        List<Substitution<Variable, Term>> discoveredSearchResults = PatternMatcher.match(
+                initialTerm.term(),
+                pattern,
+                initialTerm.termContext());
+        for (Substitution<Variable, Term> searchResult : discoveredSearchResults) {
             searchResults.add(searchResult);
             if (searchResults.size() == bound) {
                 return true;
@@ -329,21 +361,15 @@ public class SymbolicRewriter {
     }
 
     /**
-     *
      * @param initialTerm
-     * @param targetTerm not implemented yet
-     * @param rules not implemented yet
-     * @param pattern the pattern we are searching for
-     * @param bound a negative value specifies no bound
-     * @param depth a negative value specifies no bound
-     * @param searchType defines when we will attempt to match the pattern
-
+     * @param pattern     the pattern we are searching for
+     * @param bound       a negative value specifies no bound
+     * @param depth       a negative value specifies no bound
+     * @param searchType  defines when we will attempt to match the pattern
      * @return a list of substitution mappings for results that matched the pattern
      */
-    public List<Map<Variable,Term>> search(
+    public List<Substitution<Variable, Term>> search(
             Term initialTerm,
-            Term targetTerm,
-            List<Rule> rules,
             Rule pattern,
             int bound,
             int depth,
@@ -351,7 +377,7 @@ public class SymbolicRewriter {
             TermContext context) {
         stopwatch.start();
 
-        List<Map<Variable,Term>> searchResults = Lists.newArrayList();
+        List<Substitution<Variable, Term>> searchResults = Lists.newArrayList();
         Set<ConstrainedTerm> visited = Sets.newHashSet();
 
         ConstrainedTerm initCnstrTerm = new ConstrainedTerm(initialTerm, context);
@@ -362,7 +388,8 @@ public class SymbolicRewriter {
         if (depth == 0) {
             addSearchResult(searchResults, initCnstrTerm, pattern, bound);
             stopwatch.stop();
-            System.err.println("[" + visited.size() + "states, " + step + "steps, " + stopwatch + "]");
+            if (context.global().krunOptions.experimental.statistics)
+                System.err.println("[" + visited.size() + "states, " + 0 + "steps, " + stopwatch + "]");
             return searchResults;
         }
 
@@ -379,22 +406,20 @@ public class SymbolicRewriter {
         if (searchType == SearchType.STAR) {
             if (addSearchResult(searchResults, initCnstrTerm, pattern, bound)) {
                 stopwatch.stop();
-                System.err.println("[" + visited.size() + "states, " + step + "steps, " + stopwatch + "]");
+                if (context.global().krunOptions.experimental.statistics)
+                    System.err.println("[" + visited.size() + "states, " + 0 + "steps, " + stopwatch + "]");
                 return searchResults;
             }
         }
 
-        label:
+        int step;
+    label:
         for (step = 0; !queue.isEmpty(); ++step) {
             for (Map.Entry<ConstrainedTerm, Integer> entry : queue.entrySet()) {
                 ConstrainedTerm term = entry.getKey();
                 Integer currentDepth = entry.getValue();
-                computeRewriteStep(term);
-//                    System.out.println(step);
-//                    System.err.println(term);
-//                    for (ConstrainedTerm r : results) {
-//                        System.out.println(r);
-//                    }
+
+                List<ConstrainedTerm> results = computeRewriteStep(term, step, false);
 
                 if (results.isEmpty() && searchType == SearchType.FINAL) {
                     if (addSearchResult(searchResults, term, pattern, bound)) {
@@ -422,7 +447,6 @@ public class SymbolicRewriter {
                     }
                 }
             }
-//                System.out.println("+++++++++++++++++++++++");
 
             /* swap the queues */
             Map<ConstrainedTerm, Integer> temp;
@@ -433,7 +457,7 @@ public class SymbolicRewriter {
         }
 
         stopwatch.stop();
-        if (definition.context().krunOptions.experimental.statistics) {
+        if (context.global().krunOptions.experimental.statistics) {
             System.err.println("[" + visited.size() + "states, " + step + "steps, " + stopwatch + "]");
         }
 
@@ -443,57 +467,46 @@ public class SymbolicRewriter {
     public List<ConstrainedTerm> proveRule(
             ConstrainedTerm initialTerm,
             ConstrainedTerm targetTerm,
-            List<Rule> rules) {
+            List<Rule> specRules) {
         List<ConstrainedTerm> proofResults = new ArrayList<>();
         Set<ConstrainedTerm> visited = new HashSet<>();
         List<ConstrainedTerm> queue = new ArrayList<>();
         List<ConstrainedTerm> nextQueue = new ArrayList<>();
 
-        initialTerm = new ConstrainedTerm(
-                initialTerm.term().expandPatterns(
-                        initialTerm.constraint(),
-                        true),
-                initialTerm.constraint());
+        initialTerm = initialTerm.expandPatterns(true);
 
         visited.add(initialTerm);
         queue.add(initialTerm);
         boolean guarded = false;
+        int step = 0;
         while (!queue.isEmpty()) {
             step++;
-//            System.err.println("step #" + step);
             for (ConstrainedTerm term : queue) {
                 if (term.implies(targetTerm)) {
                     continue;
                 }
 
+                List<Term> leftKContents = term.term().getCellContentsByName(CellLabel.K);
+                List<Term> rightKContents = targetTerm.term().getCellContentsByName(CellLabel.K);
                 // TODO(YilongL): the `get(0)` seems hacky
-                Term leftKContent = term.term().getCellContentsByName(CellLabel.K).get(0);
-                Variable leftFrame = KSequence.getFrame(leftKContent);
-                if (leftFrame != null) {
-                    KSequence.Builder builder = KSequence.builder();
-                    KSequence.getElements(leftKContent).stream().forEach(builder::concatenate);
-                    leftKContent = builder.build();
-                }
-                Term rightKContent = targetTerm.term().getCellContentsByName(CellLabel.K).get(0);
-                Variable rightFrame = KSequence.getFrame(rightKContent);
-                if (rightFrame != null) {
-                    KSequence.Builder builder = KSequence.builder();
-                    KSequence.getElements(rightKContent).stream().forEach(builder::concatenate);
-                    rightKContent = builder.build();
-                }
-                if (leftFrame != null && rightFrame != null && leftFrame.equals(rightFrame)) {
-                    BoolToken matchable = MetaK.matchable(
-                            leftKContent,
-                            rightKContent,
-                            term.termContext());
-                    if (matchable != null && matchable.booleanValue()) {
-                        proofResults.add(term);
-                        continue;
+                if (leftKContents.size() == 1 && rightKContents.size() == 1) {
+                    Pair<Term, Variable> leftKPattern = KSequence.splitContentAndFrame(leftKContents.get(0));
+                    Pair<Term, Variable> rightKPattern = KSequence.splitContentAndFrame(rightKContents.get(0));
+                    if (leftKPattern.getRight() != null && rightKPattern.getRight() != null
+                            && leftKPattern.getRight().equals(rightKPattern.getRight())) {
+                        BoolToken matchable = MetaK.matchable(
+                                leftKPattern.getLeft(),
+                                rightKPattern.getLeft(),
+                                term.termContext());
+                        if (matchable != null && matchable.booleanValue()) {
+                            proofResults.add(term);
+                            continue;
+                        }
                     }
                 }
 
                 if (guarded) {
-                    ConstrainedTerm result = applyRule(term, rules);
+                    ConstrainedTerm result = applySpecRules(term, specRules);
                     if (result != null) {
                         if (visited.add(result))
                             nextQueue.add(result);
@@ -501,7 +514,7 @@ public class SymbolicRewriter {
                     }
                 }
 
-                computeRewriteStep(term);
+                List<ConstrainedTerm> results = slowComputeRewriteStep(term, step, false);
                 if (results.isEmpty()) {
                     /* final term */
                     proofResults.add(term);
@@ -511,7 +524,7 @@ public class SymbolicRewriter {
 //                    }
 
                     /* add helper rule */
-                    HashSet<Variable> ruleVariables = new HashSet<Variable>(initialTerm.variableSet());
+                    HashSet<Variable> ruleVariables = new HashSet<>(initialTerm.variableSet());
                     ruleVariables.addAll(targetTerm.variableSet());
 
                     /*
@@ -526,9 +539,16 @@ public class SymbolicRewriter {
                      */
                 }
 
-                for (int i = 0; getTransition(i) != null; ++i) {
-                    if (visited.add(getTransition(i))) {
-                        nextQueue.add(getTransition(i));
+                for (ConstrainedTerm cterm : results) {
+                    ConstrainedTerm result = new ConstrainedTerm(
+                            cterm.term(),
+                            cterm.constraint().removeBindings(
+                                    Sets.difference(
+                                            cterm.constraint().substitution().keySet(),
+                                            initialTerm.variableSet())),
+                            cterm.termContext());
+                    if (visited.add(result)) {
+                        nextQueue.add(result);
                     }
                 }
             }
@@ -540,16 +560,23 @@ public class SymbolicRewriter {
             nextQueue = temp;
             nextQueue.clear();
             guarded = true;
-
-            /*
-            for (ConstrainedTerm result : queue) {
-                System.err.println(result);
-            }
-            System.err.println("============================================================");
-             */
         }
 
         return proofResults;
+    }
+
+    /**
+     * Applies the first applicable specification rule and returns the result.
+     */
+    private ConstrainedTerm applySpecRules(ConstrainedTerm constrainedTerm, List<Rule> specRules) {
+        for (Rule specRule : specRules) {
+            ConstrainedTerm pattern = specRule.createLhsPattern(constrainedTerm.termContext());
+            ConjunctiveFormula constraint = constrainedTerm.matchImplies(pattern, true);
+            if (constraint != null) {
+                return buildResult(specRule, constraint, null, true, constrainedTerm.termContext());
+            }
+        }
+        return null;
     }
 
 }

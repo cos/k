@@ -2,26 +2,21 @@
 package org.kframework.backend.java.symbolic;
 
 import org.kframework.backend.java.indexing.IndexingAlgorithm;
+import org.kframework.utils.inject.RequestScoped;
 import org.kframework.utils.options.BaseEnumConverter;
 
 import com.beust.jcommander.Parameter;
-import com.google.inject.Inject;
 
+@RequestScoped
 public final class JavaExecutionOptions {
-
-    public JavaExecutionOptions() {}
-
-    //TODO(dwightguth): remove in Guice 4.0
-    @Inject
-    public JavaExecutionOptions(Void v) {}
 
     @Parameter(names="--deterministic-functions", description="Throw assertion failure during "
         + "execution in the java backend if function definitions are not deterministic.")
     public boolean deterministicFunctions = false;
 
-    @Parameter(names="--pattern-matching", description="Use pattern-matching rather than "
-        + "unification to drive rewriting in the Java backend.")
-    public boolean patternMatching = false;
+    @Parameter(names="--symbolic-execution", description="Use unification rather than "
+        + "pattern matching to drive rewriting in the Java backend.")
+    public boolean symbolicExecution = false;
 
     @Parameter(names="--rule-index", converter=RuleIndexConveter.class, description="Choose a technique for indexing the rules. <rule-index> is one of [table]. (Default: table). This only has effect with '--backend java'.")
     public IndexingAlgorithm ruleIndex = IndexingAlgorithm.RULE_TABLE;

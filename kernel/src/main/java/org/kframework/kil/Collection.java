@@ -1,12 +1,11 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
 package org.kframework.kil;
 
+import org.kframework.attributes.Location;
+import org.kframework.attributes.Source;
+
 import java.util.ArrayList;
 import java.util.List;
-
-import org.kframework.kil.loader.JavaClassesFactory;
-import org.kframework.utils.xml.XML;
-import org.w3c.dom.Element;
 
 /** Base class for collection sorts */
 public abstract class Collection extends Term implements Interfaces.MutableList<Term, Enum<?>> {
@@ -26,15 +25,6 @@ public abstract class Collection extends Term implements Interfaces.MutableList<
     public Collection(Location location, Source source, Sort sort) {
         super(location, source, sort);
         contents = new ArrayList<Term>();
-    }
-
-    public Collection(Element element, JavaClassesFactory factory) {
-        super(element);
-
-        contents = new ArrayList<Term>();
-        List<Element> children = XML.getChildrenElements(element);
-        for (Element e : children)
-            contents.add((Term) factory.getTerm(e));
     }
 
     public Collection(Sort sort, List<Term> col) {

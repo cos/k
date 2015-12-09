@@ -1,6 +1,8 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.krun.api;
 
+import org.kframework.attributes.Location;
+import org.kframework.attributes.Source;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.Term;
 import org.kframework.kil.Variable;
@@ -80,6 +82,10 @@ public abstract class Transition implements Serializable{
     public TransitionType getType() {
         return type;
     }
+
+    public abstract Location getLocation();
+
+    public abstract Source getSource();
 
 
 }

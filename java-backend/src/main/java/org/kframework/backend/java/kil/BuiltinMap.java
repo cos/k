@@ -1,14 +1,12 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.kil;
 
-import org.kframework.backend.java.symbolic.Matcher;
 import org.kframework.backend.java.symbolic.Transformer;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
-import org.kframework.backend.java.util.Utils;
+import org.kframework.backend.java.util.Constants;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.DataStructureSort;
-import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.errorsystem.KEMException;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,7 +29,6 @@ import com.google.common.collect.Lists;
  */
 public class BuiltinMap extends AssociativeCommutativeCollection {
 
-    public static final BuiltinMap EMPTY_MAP = (BuiltinMap) builder().build();
     private final UnmodifiableMap<Term, Term> entries;
 
     /**
@@ -41,19 +38,20 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
             UnmodifiableMap<Term, Term> entries,
             ImmutableMultiset<KItem> collectionPatterns,
             ImmutableMultiset<Term> collectionFunctions,
-            ImmutableMultiset<Variable> collectionVariables) {
-        super(collectionPatterns, collectionFunctions, collectionVariables);
+            ImmutableMultiset<Variable> collectionVariables,
+            GlobalContext global) {
+        super(collectionPatterns, collectionFunctions, collectionVariables, global);
         this.entries = entries;
     }
 
-    public static Term concatenate(Term... maps) {
-        Builder builder = new Builder();
+    public static Term concatenate(GlobalContext global, Term... maps) {
+        Builder builder = new Builder(global);
         builder.concatenate(maps);
         return builder.build();
     }
 
-    public static Term concatenate(Collection<Term> maps) {
-        Builder builder = new Builder();
+    public static Term concatenate(GlobalContext global, Collection<Term> maps) {
+        Builder builder = new Builder(global);
         builder.concatenate(maps);
         return builder.build();
     }
@@ -110,10 +108,10 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
     @Override
     protected int computeHash() {
         int hashCode = 1;
-        hashCode = hashCode * Utils.HASH_PRIME + entries.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + collectionPatterns.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + collectionFunctions.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + collectionVariables.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + entries.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + collectionPatterns.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + collectionFunctions.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + collectionVariables.hashCode();
         return hashCode;
     }
 
@@ -153,16 +151,6 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
     }
 
     @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
-    }
-
-    @Override
     public void accept(Visitor visitor) {
         visitor.visit(this);
     }
@@ -173,20 +161,19 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
     }
 
     @Override
-    protected List<Term> getKComponents(TermContext context) {
-        DataStructureSort sort = context.definition().context().dataStructureSortOf(
-                sort().toFrontEnd());
+    public List<Term> getKComponents() {
+        DataStructureSort sort = global.getDefinition().dataStructureSortOf(sort());
 
         ArrayList<Term> components = Lists.newArrayList();
         entries.entrySet().stream().forEach(entry ->
                 components.add(KItem.of(
-                        KLabelConstant.of(sort.elementLabel(), context.definition().context()),
+                        KLabelConstant.of(sort.elementLabel(), global.getDefinition()),
                         KList.concatenate(entry.getKey(), entry.getValue()),
-                        context, entry.getKey().getSource(), entry.getKey().getLocation())));
+                        global, entry.getKey().getSource(), entry.getKey().getLocation())));
 
         for (Term term : baseTerms()) {
             if (term instanceof BuiltinMap) {
-                components.addAll(((BuiltinMap) term).getKComponents(context));
+                components.addAll(((BuiltinMap) term).getKComponents());
             } else {
                 components.add(term);
             }
@@ -195,16 +182,21 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
         return components;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(GlobalContext global) {
+        return new Builder(global);
     }
 
     public static class Builder {
 
-        private Map<Term, Term> entries = new HashMap<>();
-        private ImmutableMultiset.Builder<KItem> patternsBuilder = new ImmutableMultiset.Builder<>();
-        private ImmutableMultiset.Builder<Term> functionsBuilder = new ImmutableMultiset.Builder<>();
-        private ImmutableMultiset.Builder<Variable> variablesBuilder = new ImmutableMultiset.Builder<>();
+        private final Map<Term, Term> entries = new HashMap<>();
+        private final ImmutableMultiset.Builder<KItem> patternsBuilder = new ImmutableMultiset.Builder<>();
+        private final ImmutableMultiset.Builder<Term> functionsBuilder = new ImmutableMultiset.Builder<>();
+        private final ImmutableMultiset.Builder<Variable> variablesBuilder = new ImmutableMultiset.Builder<>();
+        private final GlobalContext global;
+
+        public Builder(GlobalContext global) {
+            this.global = global;
+        }
 
         public void put(Term key, Term value) {
             entries.put(key, value);
@@ -228,7 +220,7 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
 
         private void concatenate(Term term, boolean update) {
             if (!term.sort().equals(Sort.MAP)) {
-                throw KExceptionManager.criticalError("unexpected sort "
+                throw KEMException.criticalError("unexpected sort "
                         + term.sort() + " of concatenated term " + term
                         + "; expected " + Sort.MAP);
             }
@@ -237,7 +229,7 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
                 BuiltinMap map = (BuiltinMap) term;
 
                 if (!update && entries.keySet().stream().anyMatch(key -> map.entries.containsKey(key))) {
-                    throw KExceptionManager.criticalError("failed to concatenate maps with common keys: "
+                    throw KEMException.criticalError("failed to concatenate maps with common keys: "
                             + entries.keySet().stream().filter(map.entries::containsKey).collect(Collectors.toList()));
                 }
 
@@ -252,7 +244,7 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
             } else if (term instanceof Variable) {
                 variablesBuilder.add((Variable) term);
             } else {
-                throw KExceptionManager.criticalError("unexpected concatenated term" + term);
+                throw KEMException.criticalError("unexpected concatenated term" + term);
             }
         }
 
@@ -292,8 +284,9 @@ public class BuiltinMap extends AssociativeCommutativeCollection {
                     (UnmodifiableMap<Term, Term>) UnmodifiableMap.unmodifiableMap(entries),
                     patternsBuilder.build(),
                     functionsBuilder.build(),
-                    variablesBuilder.build());
-            return builtinMap.baseTerms().size() == 1 && builtinMap.concreteSize() == 0 ?
+                    variablesBuilder.build(),
+                    global);
+            return builtinMap.baseTerms().size() == 1 && builtinMap.collectionVariables().size() == 1 && builtinMap.concreteSize() == 0 ?
                     builtinMap.baseTerms().iterator().next() : builtinMap;
         }
     }

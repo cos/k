@@ -1,18 +1,16 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
-Require(include.k)
-
-module INCLUDE [location(startLine(#token(Int,"3")),startColumn(#token(Int,"1")),endLine(#token(Int,"12")),endColumn(#token(Int,"9")))]
-  syntax String ::= #String [location(startLine(#token(Int,"6")),startColumn(#token(Int,"21")),endLine(#token(Int,"6")),endColumn(#token(Int,"27")))]
-  syntax Map ::= ".Map" [function() hook(Map:.Map) location(startLine(#token(Int,"8")),startColumn(#token(Int,"18")),endLine(#token(Int,"8")),endColumn(#token(Int,"74")))]
-  syntax #String ::= r"\"\\\"\" ((~[\\\"\\n\\r\\\\]) | (((([\\\\][nrtf\\\"\\\\]) | ([\\\\][x][0-9a-fA-F][0-9a-fA-F])) | ([\\\\][u][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])) | ([\\\\][U][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])))* \"\\\"\"" [location(startLine(#token(Int,"4")),startColumn(#token(Int,"22")),endLine(#token(Int,"5")),endColumn(#token(Int,"166"))) regex([\"](([^\"\n\r\\])|([\\][nrtf\"\\])|([\\][x][0-9a-fA-F]{2})|([\\][u][0-9a-fA-F]{4})|([\\][U][0-9a-fA-F]{8}))*[\"])]
-  syntax #Bool ::= "true" [location(startLine(#token(Int,"10")),startColumn(#token(Int,"20")),endLine(#token(Int,"10")),endColumn(#token(Int,"25")))]
-  syntax #Bool ::= "false" [location(startLine(#token(Int,"11")),startColumn(#token(Int,"20")),endLine(#token(Int,"11")),endColumn(#token(Int,"26")))]
+module INCLUDE [Location(#token("3",Int),#token("1",Int),#token("12",Int),#token("9",Int)) Source(#token("src/test/resources/convertor-tests/include.k",KString))]
+  syntax String ::= #String [Location(#token("6",Int),#token("21",Int),#token("6",Int),#token("27",Int)) Source(#token("src/test/resources/convertor-tests/include.k",KString))]
+  syntax Map ::= ".Map" [Location(#token("8",Int),#token("18",Int),#token("8",Int),#token("74",Int)) Source(#token("src/test/resources/convertor-tests/include.k",KString)) function(#token("",AttributeValue)) hook(#token("Map:.Map",AttributeValue)) klabel(#token(".Map",KString))]
+  syntax #String ::= r"[\\\"](([^\\\"\\n\\r\\\\])|([\\\\][nrtf\\\"\\\\])|([\\\\][x][0-9a-fA-F]{2})|([\\\\][u][0-9a-fA-F]{4})|([\\\\][U][0-9a-fA-F]{8}))*[\\\"]" [Location(#token("4",Int),#token("22",Int),#token("5",Int),#token("166",Int)) Source(#token("src/test/resources/convertor-tests/include.k",KString)) klabel(#token("",KString)) regex(#token("[\\\"](([^\\\"\\n\\r\\\\])|([\\\\][nrtf\\\"\\\\])|([\\\\][x][0-9a-fA-F]{2})|([\\\\][u][0-9a-fA-F]{4})|([\\\\][U][0-9a-fA-F]{8}))*[\\\"]",AttributeValue))]
+  syntax #Bool ::= "true" [Location(#token("10",Int),#token("20",Int),#token("10",Int),#token("25",Int)) Source(#token("src/test/resources/convertor-tests/include.k",KString)) klabel(#token("true",KString))]
+  syntax #Bool ::= "false" [Location(#token("11",Int),#token("20",Int),#token("11",Int),#token("26",Int)) Source(#token("src/test/resources/convertor-tests/include.k",KString)) klabel(#token("false",KString))]
 endmodule
 
 
-module TEST [location(startLine(#token(Int,"5")),startColumn(#token(Int,"1")),endLine(#token(Int,"13")),endColumn(#token(Int,"9")))]
-  syntax Exp ::= Exp "+" Exp [location(startLine(#token(Int,"8")),startColumn(#token(Int,"18")),endLine(#token(Int,"8")),endColumn(#token(Int,"28")))]
-  imports INCLUDE [location(startLine(#token(Int,"6")),startColumn(#token(Int,"3")),endLine(#token(Int,"6")),endColumn(#token(Int,"17")))]
-  context '_+_(_ [location(startLine(#token(Int,"12")),startColumn(#token(Int,"11")),endLine(#token(Int,"12")),endColumn(#token(Int,"12"))) sort(K)],HOLE(#token(KItem,"")) [location(startLine(#token(Int,"12")),startColumn(#token(Int,"15")),endLine(#token(Int,"12")),endColumn(#token(Int,"19"))) sort(KItem)]) [location(startLine(#token(Int,"12")),startColumn(#token(Int,"11")),endLine(#token(Int,"12")),endColumn(#token(Int,"19"))) sort(Exp)] requires #token(KBoolean,"true")
-  context '_+_(HOLE(#token(KItem,"")) [location(startLine(#token(Int,"10")),startColumn(#token(Int,"11")),endLine(#token(Int,"10")),endColumn(#token(Int,"15"))) sort(KItem)],_ [location(startLine(#token(Int,"10")),startColumn(#token(Int,"18")),endLine(#token(Int,"10")),endColumn(#token(Int,"19"))) sort(K)]) [location(startLine(#token(Int,"10")),startColumn(#token(Int,"11")),endLine(#token(Int,"10")),endColumn(#token(Int,"19"))) sort(Exp)] requires #token(KBoolean,"true")
+module TEST [Location(#token("5",Int),#token("1",Int),#token("13",Int),#token("9",Int)) Source(#token("src/test/resources/convertor-tests/context.k",KString))]
+  imports INCLUDE
+  syntax Exp ::= Exp "+" Exp [Location(#token("8",Int),#token("18",Int),#token("8",Int),#token("28",Int)) Source(#token("src/test/resources/convertor-tests/context.k",KString)) klabel(#token("_+_",KString))]
+  context _+_(_,HOLE(#token("",KItem))) requires #token("true",Bool)
+  context _+_(HOLE(#token("",KItem)),_) requires #token("true",Bool)
 endmodule

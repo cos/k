@@ -18,38 +18,14 @@ import org.kframework.kil.visitors.Visitor;
  */
 public abstract class PrePostTransformer extends CopyOnWriteTransformer {
 
-    /**
-     * Returns the {@code CombinedLocalTransformer} used for pre-processing.
-     */
-    public CombinedLocalTransformer getPreTransformer() {
-        return preTransformer;
-    }
-
-    public void setPreTransformer(CombinedLocalTransformer preTransformer) {
-        this.preTransformer = preTransformer;
-    }
-
-    /**
-     * Returns the {@code CombinedLocalTransformer} used for post-processing.
-     */
-    public CombinedLocalTransformer getPostTransformer() {
-        return postTransformer;
-    }
-
-    public void setPostTransformer(CombinedLocalTransformer postTransformer) {
-        this.postTransformer = postTransformer;
-    }
-
-    protected CombinedLocalTransformer preTransformer = new CombinedLocalTransformer();
-    protected CombinedLocalTransformer postTransformer = new CombinedLocalTransformer();
+    protected final CombinedLocalTransformer preTransformer = new CombinedLocalTransformer();
+    protected final CombinedLocalTransformer postTransformer = new CombinedLocalTransformer();
 
     public PrePostTransformer(TermContext context) {
         super(context);
     }
 
-    public PrePostTransformer() {
-        super();
-    }
+    public PrePostTransformer() { }
 
     @Override
     public ASTNode transform(CellCollection cellCollection) {
@@ -283,27 +259,27 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
     }
 
     @Override
-    public ASTNode transform(SymbolicConstraint symbolicConstraint) {
-        ASTNode astNode = symbolicConstraint.accept(preTransformer);
+    public ASTNode transform(ConjunctiveFormula conjunctiveFormula) {
+        ASTNode astNode = conjunctiveFormula.accept(preTransformer);
         if (astNode instanceof DoneTransforming) {
             return ((DoneTransforming) astNode).getContents();
         }
-        assert astNode instanceof SymbolicConstraint : "preTransformer should not modify type";
-        symbolicConstraint = (SymbolicConstraint) astNode;
-        symbolicConstraint = (SymbolicConstraint) super.transform(symbolicConstraint);
-        return symbolicConstraint.accept(postTransformer);
+        assert astNode instanceof ConjunctiveFormula : "preTransformer should not modify type";
+        conjunctiveFormula = (ConjunctiveFormula) astNode;
+        conjunctiveFormula = (ConjunctiveFormula) super.transform(conjunctiveFormula);
+        return conjunctiveFormula.accept(postTransformer);
     }
 
     @Override
-    public ASTNode transform(UninterpretedConstraint uninterpretedConstraint) {
-        ASTNode astNode = uninterpretedConstraint.accept(preTransformer);
+    public ASTNode transform(DisjunctiveFormula disjunctiveFormula) {
+        ASTNode astNode = disjunctiveFormula.accept(preTransformer);
         if (astNode instanceof DoneTransforming) {
             return ((DoneTransforming) astNode).getContents();
         }
-        assert astNode instanceof UninterpretedConstraint : "preTransformer should not modify type";
-        uninterpretedConstraint = (UninterpretedConstraint) astNode;
-        uninterpretedConstraint = (UninterpretedConstraint) super.transform(uninterpretedConstraint);
-        return uninterpretedConstraint.accept(postTransformer);
+        assert astNode instanceof DisjunctiveFormula : "preTransformer should not modify type";
+        disjunctiveFormula = (DisjunctiveFormula) astNode;
+        disjunctiveFormula = (DisjunctiveFormula) super.transform(disjunctiveFormula);
+        return disjunctiveFormula.accept(postTransformer);
     }
 
     @Override
@@ -323,7 +299,7 @@ public abstract class PrePostTransformer extends CopyOnWriteTransformer {
         return variable.accept(postTransformer);
     }
 
-    protected class DoneTransforming extends ASTNode {
+    protected static class DoneTransforming extends ASTNode {
         public DoneTransforming(ASTNode node) {
             contents = node;
         }

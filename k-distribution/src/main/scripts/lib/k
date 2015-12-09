@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-source "$(dirname "$0")/setenv"
-ulimit -s `ulimit -H -s`
-if [ -z "$K_OPTS" ];
-  then export K_OPTS="-Xms64m -Xmx1024m -Xss32m -XX:+TieredCompilation"
-fi
-if "$(dirname "$0")/checkJava"; then
-  if [ -n "$K_NAILGUN" ]; then
+if [[ `uname` == *MINGW* || `uname` == *MSYS* || `uname` == *CYGWIN* ]]; then
+  "$(dirname "$0")/k.bat" "$@"
+else
+  source "$(dirname "$0")/setenv"
+  ulimit -s `ulimit -H -s`
+  export K_OPTS="-Xms64m -Xmx1024m -Xss32m -XX:+TieredCompilation $K_OPTS"
+  if "$(dirname "$0")/checkJava"; then
     if [[ `uname` == *MINGW* || `uname` == *CYGWIN* ]]; then
-      ng.exe org.kframework.main.Main "$@"
+      NG=ng.exe
     else
-      ng org.kframework.main.Main "$@"
+      NG=ng
+    fi
+    $NG ng-version > /dev/null 2>&1
+    if [ $? -eq 0 ]; then
+      $NG org.kframework.main.Main "$@"
+    else
+      java -Djava.awt.headless=true $K_OPTS -ea -cp "$(dirname "$0")/java/*" org.kframework.main.Main "$@"
     fi
   else
-    java -Djava.awt.headless=true $K_OPTS -ea -cp "$(dirname "$0")/java/*" org.kframework.main.Main "$@"
+    exit 1
   fi
-else
-  exit 1
 fi

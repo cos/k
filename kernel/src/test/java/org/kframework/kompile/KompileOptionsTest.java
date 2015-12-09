@@ -10,6 +10,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.kframework.backend.Backends;
+import org.kframework.utils.errorsystem.KEMException;
 import org.kframework.utils.errorsystem.KExceptionManager;
 import org.kframework.utils.file.FileUtil;
 import org.mockito.Matchers;
@@ -19,6 +20,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
 import com.beust.jcommander.JCommander;
+import com.google.inject.util.Providers;
 
 @RunWith(MockitoJUnitRunner.class)
 public class KompileOptionsTest {
@@ -34,7 +36,7 @@ public class KompileOptionsTest {
     @Before
     public void setUp() {
         options = new KompileOptions();
-        options.setFiles(files);
+        options.setFiles(Providers.of(files));
         when(files.resolveWorkingDirectory(Matchers.anyString())).thenAnswer(new Answer<File>() {
             @Override
             public File answer(InvocationOnMock invocation) throws Throwable {
@@ -51,7 +53,7 @@ public class KompileOptionsTest {
         options.syntaxModule();
     }
 
-    @Test(expected=KExceptionManager.KEMException.class)
+    @Test(expected=KEMException.class)
     public void testNoDefinition() throws Exception {
         parse();
     }

@@ -1,16 +1,16 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.kil;
 
-import java.util.Collections;
-import java.util.List;
-
-import org.kframework.backend.java.symbolic.Matcher;
+import com.google.common.collect.ImmutableList;
+import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.kframework.backend.java.symbolic.Transformer;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Visitor;
 import org.kframework.kil.ASTNode;
+import org.kframework.kore.K;
 
-import com.google.common.collect.ImmutableList;
+import java.util.Collections;
+import java.util.List;
 
 
 /**
@@ -29,7 +29,7 @@ import com.google.common.collect.ImmutableList;
  * @author AndreiS
  */
 @SuppressWarnings("serial")
-public class KSequence extends KCollection {
+public class KSequence extends KCollection implements org.kframework.kore.KSequence {
 
     private static final String SEPARATOR_NAME = " ~> ";
     private static final String IDENTITY_NAME = "." + Kind.K;
@@ -43,6 +43,16 @@ public class KSequence extends KCollection {
     private final ImmutableList<Variable> kSequenceVariables;
 
     /**
+     * Builds a KSequence consisting of the given variable. This method is
+     * necessary in addition to the {@code Builder} because the {@code Builder}
+     * will canonicalize its result and, thus, simply return the given variable.
+     */
+    public static KSequence frame(Variable variable) {
+        assert variable.kind().equals(Kind.K);
+        return new KSequence(ImmutableList.of(), variable, ImmutableList.<Variable>of());
+    }
+
+    /**
      * Builds a single-element KSequence based on the given term. This method is
      * necessary in addition to the {@code Builder} because the {@code Builder}
      * will canonicalize its result and, thus, simply return the given term.
@@ -53,33 +63,19 @@ public class KSequence extends KCollection {
     }
 
     /**
-     * Retrieves the frame variable of a given term representing a potentially
-     * canonicalized {@code KSequence}.
+     * Splits the content and the frame variable of a potentially canonicalized
+     * {@code KSequence}.
      */
-    public static Variable getFrame(Term term) {
+    public static Pair<Term, Variable> splitContentAndFrame(Term term) {
         if (term instanceof Variable && term.sort().equals(Sort.KSEQUENCE)) {
-            return (Variable) term;
+            return Pair.of(EMPTY, (Variable) term);
         } else if (term.kind() == Kind.KITEM) {
-            return null;
+            return Pair.of(term, null);
         } else if (term instanceof KSequence) {
-            return ((KSequence) term).frame;
-        } else {
-            assert false : "unexpected argument: " + term;
-            return null;
-        }
-    }
-
-    /**
-     * Retrieves the list of elements of a given term representing a potentially
-     * canonicalized {@code KSequence}.
-     */
-    public static List<Term> getElements(Term term) {
-        if (term instanceof Variable && term.sort().equals(Sort.KSEQUENCE)) {
-            return Collections.emptyList();
-        } else if (term.kind() == Kind.KITEM) {
-            return Collections.singletonList(term);
-        } else if (term instanceof KSequence) {
-            return ((KSequence) term).contents;
+            KSequence kSequence = (KSequence) term;
+            Builder builder = builder();
+            kSequence.contents.forEach(builder::concatenate);
+            return Pair.of(builder.build(), kSequence.frame);
         } else {
             assert false : "unexpected argument: " + term;
             return null;
@@ -90,6 +86,15 @@ public class KSequence extends KCollection {
         super(frame, Kind.K);
         this.contents = contents;
         this.kSequenceVariables = kSequenceVariables;
+    }
+
+    @Override
+    public List<K> items() {
+        if (frame != null) {
+            return ListUtils.union(super.items(), Collections.singletonList(frame));
+        } else {
+            return super.items();
+        }
     }
 
     @Override
@@ -160,16 +165,6 @@ public class KSequence extends KCollection {
         return (frame == null ? kSequence.frame == null : frame
                 .equals(kSequence.frame))
                 && contents.equals(kSequence.contents);
-    }
-
-    @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
     }
 
     @Override

@@ -2,17 +2,29 @@
 
 package org.kframework.builtin
 
-import org.kframework.kore.UninterpretedSort
-import org.kframework.kore.KLabel
-import org.kframework.kore.UninterpretedSort
+import org.kframework.kore.ADT
+import org.kframework.kore.KORE.Sort
 
 object Sorts {
-  val KString = UninterpretedSort("KString")
-  val KBoolean = UninterpretedSort("KBoolean")
-  val Int = UninterpretedSort("Int")
+  val KString = Sort("KString")
+  val String = Sort("String")
 
-  val K = UninterpretedSort("K")
-  val KVariable = UninterpretedSort("KVariable")
-  val KList = UninterpretedSort("KList")
-  val KToken = UninterpretedSort("KToken")
+  val KBool = Sort("KBool")
+  val Bool = Sort("Bool")
+
+  val Int = Sort("Int")
+  val File = Sort("File")
+  val Float = Sort("Float")
+
+  val K = Sort("K")
+  val KBott = Sort("KBott")
+  val KVariable = Sort("#KVariable")
+  val KItem = Sort("KItem")
+  val KLabel = Sort("KLabel")
+  val KList = Sort("KList")
+  val KToken = Sort("KToken")
+  val KConfigVar = Sort("KConfigVar")
+
+  val Id = ADT.Sort("Id")
+  val KSeq = ADT.Sort("KSequence")
 }

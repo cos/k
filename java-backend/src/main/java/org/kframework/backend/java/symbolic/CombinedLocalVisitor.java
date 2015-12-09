@@ -15,10 +15,10 @@ import java.util.List;
  */
 public class CombinedLocalVisitor extends LocalVisitor {
 
-    List<LocalVisitor> Visitors;
+    final List<LocalVisitor> Visitors;
 
     public CombinedLocalVisitor() {
-        Visitors = new ArrayList<LocalVisitor>();
+        Visitors = new ArrayList<>();
     }
 
     public CombinedLocalVisitor(LocalVisitor... localVisitors) {
@@ -155,7 +155,12 @@ public class CombinedLocalVisitor extends LocalVisitor {
     }
 
     @Override
-    public void visit(SymbolicConstraint node) {
+    public void visit(ConjunctiveFormula node) {
+        visitAll(node);
+    }
+
+    @Override
+    public void visit(DisjunctiveFormula node) {
         visitAll(node);
     }
 

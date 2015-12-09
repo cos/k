@@ -121,6 +121,20 @@ public class BottomUpVisitor implements Visitor {
     }
 
     @Override
+    public void visit(InjectedKLabel injectedKLabel) {
+        injectedKLabel.injectedKLabel().accept(this);
+        visit((Term) injectedKLabel);
+    }
+
+    @Override
+    public void visit(RuleAutomatonDisjunction ruleAutomatonDisjunction) {
+        ruleAutomatonDisjunction.disjunctions().stream().forEach(p -> p.getLeft().accept(this));
+    }
+
+    @Override
+    public void visit(InnerRHSRewrite innerRHSRewrite) { }
+
+    @Override
     public void visit(KCollection kCollection) {
         for (Term term : kCollection) {
             term.accept(this);
@@ -168,7 +182,7 @@ public class BottomUpVisitor implements Visitor {
     }
 
     @Override
-    public void visit(SymbolicConstraint node) {
+    public void visit(ConjunctiveFormula node) {
         for (Map.Entry<Variable, Term> entry : node.substitution().entrySet()) {
             entry.getKey().accept(this);
             entry.getValue().accept(this);
@@ -177,6 +191,16 @@ public class BottomUpVisitor implements Visitor {
             equality.leftHandSide().accept(this);
             equality.rightHandSide().accept(this);
         }
+        for (DisjunctiveFormula disjunctiveFormula : node.disjunctions()) {
+            disjunctiveFormula.accept(this);
+        }
+    }
+
+    @Override
+    public void visit(DisjunctiveFormula node) {
+        for (ConjunctiveFormula conjunctiveFormula : node.conjunctions()) {
+            conjunctiveFormula.accept(this);
+        }
     }
 
     @Override public void visit(Term term) { }
@@ -184,14 +208,6 @@ public class BottomUpVisitor implements Visitor {
     @Override
     public void visit(Token token) {
         visit((Term) token);
-    }
-
-    @Override
-    public void visit(UninterpretedConstraint uninterpretedConstraint) {
-        for (UninterpretedConstraint.Equality equality : uninterpretedConstraint.equalities()) {
-            equality.leftHandSide().accept(this);
-            equality.rightHandSide().accept(this);
-        }
     }
 
     @Override

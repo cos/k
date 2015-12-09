@@ -10,9 +10,9 @@ import org.kframework.backend.java.kil.MetaVariable;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
 import org.kframework.backend.java.kil.Variable;
+import org.kframework.backend.java.symbolic.ConjunctiveFormula;
 import org.kframework.backend.java.symbolic.CopyOnWriteTransformer;
 import org.kframework.backend.java.symbolic.PatternMatcher;
-import org.kframework.backend.java.symbolic.SymbolicConstraint;
 import org.kframework.kil.ASTNode;
 
 import java.util.HashSet;
@@ -40,16 +40,16 @@ public class MetaK {
      *         {@code null}
      */
     public static BoolToken unifiable(Term term1, Term term2, TermContext context) {
-        SymbolicConstraint constraint = new SymbolicConstraint(context);
-        constraint.add(term1, term2);
-        constraint.simplify();
+        ConjunctiveFormula constraint = ConjunctiveFormula.of(context.global())
+                .add(term1, term2)
+                .simplify(context);
         if (constraint.isFalse()) {
             return BoolToken.FALSE;
         }
 
         BoolToken result = BoolToken.FALSE;
-        for (SymbolicConstraint solution : constraint.getMultiConstraints()) {
-            solution.simplify();
+        for (ConjunctiveFormula solution : constraint.getDisjunctiveNormalForm().conjunctions()) {
+            solution = solution.simplify(context);
             if (solution.isSubstitution()) {
                 return BoolToken.TRUE;
             } else if (!solution.isFalse()) {
@@ -98,7 +98,7 @@ public class MetaK {
             return term;
         }
 
-        Set<Variable> variables = new HashSet<Variable>();
+        Set<Variable> variables = new HashSet<>();
         for (Term element : builtinSet.elements()) {
             if (!(element instanceof MetaVariable)) {
                 return term;
@@ -107,14 +107,14 @@ public class MetaK {
             variables.add(new Variable((MetaVariable) element));
         }
 
-        term = (Term) term.accept(new CopyOnWriteTransformer(context) {
+        term = (Term) term.accept(new CopyOnWriteTransformer() {
             @Override
             public ASTNode transform(MetaVariable metaVariable) {
                 return new Variable(metaVariable);
             }
         });
 
-        return KLabelInjection.injectionOf(term.substitute(Variable.getFreshSubstitution(variables), context), context);
+        return term.substitute(Variable.rename(variables));
     }
 
     /**
@@ -128,12 +128,12 @@ public class MetaK {
      */
     public static Term renameVariables(Term term, TermContext context) {
         Set<Variable> variables = term.variableSet();
-        return term.substitute(Variable.getFreshSubstitution(variables), context);
+        return term.substitute(Variable.rename(variables));
     }
 
     public static Term freezeVariables(Term termToFreeze, Term termWithBoundVars, TermContext context) {
         BuiltinSet variables = trueVariables(termWithBoundVars, context);
-        return KLabelInjection.injectionOf((Term) termToFreeze.accept(new CopyOnWriteTransformer(context) {
+        return (Term) termToFreeze.accept(new CopyOnWriteTransformer(context) {
             @Override
             public ASTNode transform(Variable variable) {
                 if (!variables.contains(variable)) {
@@ -141,7 +141,7 @@ public class MetaK {
                 }
                 return variable;
             }
-        }), context);
+        });
     }
 
     /**
@@ -149,7 +149,7 @@ public class MetaK {
      * {@link BuiltinSet} of {@link MetaVariable}s.
      */
     public static BuiltinSet variables(Term term, TermContext context) {
-        BuiltinSet.Builder builder = BuiltinSet.builder();
+        BuiltinSet.Builder builder = BuiltinSet.builder(context.global());
         for (Variable variable : term.variableSet()) {
             builder.add(new MetaVariable(variable));
         }
@@ -161,13 +161,13 @@ public class MetaK {
      * {@link BuiltinSet}.
      */
     public static BuiltinSet trueVariables(Term term, TermContext context) {
-        BuiltinSet.Builder builder = BuiltinSet.builder();
+        BuiltinSet.Builder builder = BuiltinSet.builder(context.global());
         builder.addAll(term.variableSet());
         return (BuiltinSet) builder.build();
     }
 
     public static Term variablesMap(Term term, TermContext context) {
-        BuiltinMap.Builder builder = BuiltinMap.builder();
+        BuiltinMap.Builder builder = BuiltinMap.builder(context.global());
         for (Variable variable : term.variableSet()) {
             builder.put(new MetaVariable(variable), variable);
         }
@@ -185,7 +185,11 @@ public class MetaK {
      */
     public static KItem getKLabel(KItem kItem, TermContext context) {
         // TODO(AndreiS): handle KLabel variables
-        return KItem.of(new KLabelInjection(kItem.kLabel()), KList.EMPTY, context,
+        return KItem.of(new KLabelInjection(kItem.kLabel()), KList.EMPTY, context.global(),
             kItem.getSource(), kItem.getLocation());
+    }
+
+    public static Term configuration(TermContext context) {
+        return KLabelInjection.injectionOf(context.getTopTerm(), context.global());
     }
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.builtins;
 
-import org.kframework.backend.java.kil.Definition;
+import com.google.inject.Inject;
 import org.kframework.backend.java.kil.KItem;
 import org.kframework.backend.java.kil.KLabelConstant;
 import org.kframework.backend.java.kil.KLabelInjection;
@@ -9,25 +9,14 @@ import org.kframework.backend.java.kil.KList;
 import org.kframework.backend.java.kil.KSequence;
 import org.kframework.backend.java.kil.Term;
 import org.kframework.backend.java.kil.TermContext;
-import org.kframework.backend.java.symbolic.KILtoBackendJavaKILTransformer;
-import org.kframework.kil.Sort;
-import org.kframework.kil.Sources;
-import org.kframework.kil.loader.Context;
-import org.kframework.utils.errorsystem.ParseFailedException;
-import org.kframework.krun.KRunOptions.ConfigurationCreationOptions;
 import org.kframework.krun.RunProcess;
 import org.kframework.krun.RunProcess.ProcessOutput;
 import org.kframework.krun.api.io.FileSystem;
 
-import com.google.inject.Inject;
-import com.google.inject.Provider;
-
-import org.kframework.parser.ProgramLoader;
-
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 
 /**
@@ -35,30 +24,12 @@ import java.util.HashMap;
  */
 public class BuiltinIOOperations {
 
-    private final Definition def;
     private final FileSystem fs;
-    private final Context context;
-    private final ConfigurationCreationOptions ccOptions;
-    private final Provider<KILtoBackendJavaKILTransformer> kilTransformerProvider;
-    private final ProgramLoader programLoader;
-    private final RunProcess rp;
 
     @Inject
     public BuiltinIOOperations(
-            Definition def,
-            FileSystem fs,
-            Context context,
-            ConfigurationCreationOptions ccOptions,
-            Provider<KILtoBackendJavaKILTransformer> kilTransformerProvider,
-            ProgramLoader programLoader,
-            RunProcess rp) {
-        this.def = def;
+            FileSystem fs) {
         this.fs = fs;
-        this.context = context;
-        this.ccOptions = ccOptions;
-        this.kilTransformerProvider = kilTransformerProvider;
-        this.programLoader = programLoader;
-        this.rp = rp;
     }
 
     public Term open(StringToken term1, StringToken term2, TermContext termContext) {
@@ -96,58 +67,50 @@ public class BuiltinIOOperations {
     public Term close(IntToken term, TermContext termContext) {
         try {
             fs.close(term.longValue());
-            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext);
+            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext.global());
         } catch (IOException e) {
             return KLabelInjection.injectionOf(
                     processIOException(e.getMessage(), termContext),
-                    termContext);
+                    termContext.global());
         }
     }
 
     public Term seek(IntToken term1, IntToken term2, TermContext termContext) {
         try {
             fs.get(term1.longValue()).seek(term2.longValue());
-            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext);
+            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext.global());
         } catch (IOException e) {
             return KLabelInjection.injectionOf(
                     processIOException(e.getMessage(), termContext),
-                    termContext);
+                    termContext.global());
         }
     }
 
     public Term putc(IntToken term1, IntToken term2, TermContext termContext) {
         try {
             fs.get(term1.longValue()).putc(term2.unsignedByteValue());
-            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext);
+            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext.global());
         } catch (IOException e) {
             return KLabelInjection.injectionOf(
                     processIOException(e.getMessage(), termContext),
-                    termContext);
+                    termContext.global());
         }
     }
     public Term write(IntToken term1, StringToken term2, TermContext termContext) {
         try {
             fs.get(term1.longValue()).write(term2.byteArrayValue());
-            return KLabelInjection.injectionOf(KSequence.EMPTY, termContext);
+            return KSequence.EMPTY;
         } catch (CharacterCodingException e) {
             throw new IllegalArgumentException(e);
         } catch (IOException e) {
             return KLabelInjection.injectionOf(
                     processIOException(e.getMessage(), termContext),
-                    termContext);
+                    termContext.global());
         }
     }
 
     public Term parse(StringToken term1, StringToken term2, TermContext termContext) {
-        try {
-            org.kframework.kil.Term kast = rp.runParser(
-                    ccOptions.parser(context),
-                    term1.stringValue(), true, Sort.of(term2.stringValue()), context);
-            Term term = kilTransformerProvider.get().transformAndEval(kast);
-            return term;
-        } catch (ParseFailedException e) {
-            return processIOException("noparse", termContext);
-        }
+        throw new RuntimeException("Not implemented!");
     }
 
     public Term parseInModule(StringToken input, StringToken startSymbol, StringToken moduleName, TermContext termContext) {
@@ -158,9 +121,9 @@ public class BuiltinIOOperations {
         Map<String, String> environment = new HashMap<>();
         String[] args = term.stringValue().split("\001", -1);
         //for (String c : args) { System.out.println(c); }
-        ProcessOutput output = rp.execute(environment, args);
+        ProcessOutput output = RunProcess.execute(environment, termContext.global().files.getProcessBuilder(), args);
 
-        KLabelConstant klabel = KLabelConstant.of("'#systemResult(_,_,_)", context);
+        KLabelConstant klabel = KLabelConstant.of("'#systemResult(_,_,_)", termContext.definition());
         /*
         String klabelString = "'#systemResult(_,_,_)";
         KLabelConstant klabel = KLabelConstant.of(klabelString, context);
@@ -169,14 +132,14 @@ public class BuiltinIOOperations {
         String stdout = output.stdout != null ? output.stdout : "";
         String stderr = output.stderr != null ? output.stderr : "";
         return KItem.of(klabel, KList.concatenate(IntToken.of(output.exitCode),
-            StringToken.of(stdout.trim()), StringToken.of(stderr.trim())), termContext);
+            StringToken.of(stdout.trim()), StringToken.of(stderr.trim())), termContext.global());
     }
 
     private KItem processIOException(String errno, Term klist, TermContext termContext) {
         String klabelString = "'#" + errno;
-        KLabelConstant klabel = KLabelConstant.of(klabelString, context);
-        assert def.kLabels().contains(klabel) : "No KLabel in definition for errno '" + errno + "'";
-        return KItem.of(klabel, klist, termContext);
+        KLabelConstant klabel = KLabelConstant.of(klabelString, termContext.definition());
+        assert termContext.definition().kLabels().contains(klabel) : "No KLabel in definition for errno '" + errno + "'";
+        return KItem.of(klabel, klist, termContext.global());
     }
 
     private KItem processIOException(String errno, TermContext termContext) {

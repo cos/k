@@ -1,6 +1,7 @@
 // Copyright (c) 2014-2015 K Team. All Rights Reserved.
 package org.kframework.kil.loader;
 
+import org.kframework.builtin.KLabels;
 import org.kframework.compile.utils.ConfigurationStructureMap;
 import org.kframework.kil.Attribute;
 import org.kframework.kil.Attribute.Key;
@@ -16,8 +17,9 @@ import org.kframework.krun.KRunOptions;
 import org.kframework.main.GlobalOptions;
 import org.kframework.utils.Poset;
 import org.kframework.utils.StringUtil;
+import org.kframework.utils.errorsystem.KEMException;
 import org.kframework.utils.errorsystem.KExceptionManager;
-import org.kframework.utils.file.FileUtil;
+import org.kframework.utils.inject.RequestScoped;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -35,9 +37,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.inject.Inject;
-import com.google.inject.Singleton;
 
-@Singleton
+@RequestScoped
 public class Context implements Serializable {
 
     public static final Set<Key<String>> parsingTags = ImmutableSet.of(
@@ -77,11 +78,10 @@ public class Context implements Serializable {
     private Poset<String> assocLeft = Poset.create();
     private Poset<String> assocRight = Poset.create();
     public Map<String, Sort> configVarSorts = new HashMap<>();
-    @Deprecated
-    public transient FileUtil files;
     public Map<String, CellDataStructure> cellDataStructures = new HashMap<>();
     public Set<Sort> variableTokenSorts = new HashSet<>();
     public HashMap<Sort, String> freshFunctionNames = new HashMap<>();
+    public HashMap<Sort, Sort> smtSortFlattening = new HashMap<>();
 
     private BiMap<String, Production> conses;
 
@@ -130,8 +130,8 @@ public class Context implements Serializable {
 
     // TODO(dwightguth): remove these fields and replace with injected dependencies
     @Deprecated @Inject public transient GlobalOptions globalOptions;
-    @Deprecated public KompileOptions kompileOptions;
-    @Deprecated @Inject(optional=true) public KRunOptions krunOptions;
+    public KompileOptions kompileOptions;
+    @Deprecated @Inject(optional=true) public transient KRunOptions krunOptions;
 
     public Context() {
         initSubsorts(subsorts);
@@ -193,10 +193,6 @@ public class Context implements Serializable {
         if (sort == null) {
             if (cell.getLabel().equals("k"))
                 sort = Sort.K;
-            else if (cell.getLabel().equals("T"))
-                sort = Sort.BAG;
-            else if (cell.getLabel().equals("generatedTop"))
-                sort = Sort.BAG;
             else if (cell.getLabel().equals("freshCounter"))
                 sort = Sort.K;
             else if (cell.getLabel().equals("path-condition"))
@@ -339,7 +335,7 @@ public class Context implements Serializable {
             for (Sort sort : circuit)
                 msg += sort + " < ";
             msg += circuit.get(0);
-            throw KExceptionManager.criticalError(msg);
+            throw KEMException.criticalError(msg);
         }
         subsorts.transitiveClosure();
         // detect if lists are subsorted (Vals Ids < Exps)
@@ -423,15 +419,39 @@ public class Context implements Serializable {
         this.dataStructureSorts = new HashMap<>(dataStructureSorts);
     }
 
+    /**
+     * Return the DataStructureSort corresponding to the given Sort, or null if
+     * the sort is not known as a data structure sort.
+     */
     public DataStructureSort dataStructureSortOf(Sort sort) {
         return dataStructureSorts.get(sort);
     }
 
+    /**
+     * Like dataStructureSortOf, except it returns null also if
+     * the sort corresponds to a DataStructureSort which isn't a list sort.
+     */
     public DataStructureSort dataStructureListSortOf(Sort sort) {
         DataStructureSort dataStructSort = dataStructureSorts.get(sort);
         if (dataStructSort == null) return null;
         if (!dataStructSort.type().equals(Sort.LIST)) return null;
         return dataStructSort;
+    }
+
+    /**
+     * Get a DataStructureSort for the default list sort, or raise a nice exception.
+     * Equivalent to
+     * <code>dataStructureListSortOf(DataStructureSort.DEFAULT_LIST_SORT)</code>,
+     * if it succeeds.
+     */
+    public DataStructureSort getDefaultListDataStructureSort() {
+        DataStructureSort list = dataStructureListSortOf(DataStructureSort.DEFAULT_LIST_SORT);
+        if (list == null) {
+            throw KEMException.internalError(
+                    "A sort List must exist and be recognized as a data structure sort."
+                            + " Installation is corrupt or --no-prelude used with incomplete definition.");
+        }
+        return list;
     }
 
     /**
@@ -460,6 +480,18 @@ public class Context implements Serializable {
             }
 
             freshFunctionNames.put(production.getSort(), production.getKLabel());
+        }
+    }
+
+    public void makeSMTSortFlatteningMap(Set<Production> freshProductions) {
+        for (Production production : freshProductions) {
+            if (!production.isSubsort()) {
+                throw KExceptionManager.compilerError(
+                        "unexpected tag [smt-sort-flatten] for non-subsort production " + production,
+                        production);
+            }
+
+            smtSortFlattening.put(production.getSubsort(), production.getSort());
         }
     }
 
@@ -518,6 +550,10 @@ public class Context implements Serializable {
                 conses.put(cons, p);
             }
         }
+    }
+
+    public Poset<Sort> subsorts() {
+        return subsorts;
     }
 
 }

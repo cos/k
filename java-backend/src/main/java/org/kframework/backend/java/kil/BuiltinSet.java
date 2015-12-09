@@ -1,14 +1,13 @@
 // Copyright (c) 2013-2015 K Team. All Rights Reserved.
 package org.kframework.backend.java.kil;
 
-import org.kframework.backend.java.symbolic.Matcher;
-import org.kframework.backend.java.symbolic.Unifier;
 import org.kframework.backend.java.symbolic.Transformer;
 import org.kframework.backend.java.symbolic.Visitor;
-import org.kframework.backend.java.util.Utils;
+import org.kframework.backend.java.util.Constants;
 import org.kframework.kil.ASTNode;
 import org.kframework.kil.DataStructureSort;
-import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.utils.errorsystem.KEMException;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -29,25 +28,20 @@ import com.google.common.collect.Lists;
  */
 public class BuiltinSet extends AssociativeCommutativeCollection {
 
-    public static final BuiltinSet EMPTY_SET = new BuiltinSet(
-            ImmutableSet.<Term>of(),
-            ImmutableMultiset.<KItem>of(),
-            ImmutableMultiset.<Term>of(),
-            ImmutableMultiset.<Variable>of());
-
     private final ImmutableSet<Term> elements;
 
     private BuiltinSet(
             ImmutableSet<Term> elements,
             ImmutableMultiset<KItem> collectionPatterns,
             ImmutableMultiset<Term> collectionFunctions,
-            ImmutableMultiset<Variable> collectionVariables) {
-        super(collectionPatterns, collectionFunctions, collectionVariables);
+            ImmutableMultiset<Variable> collectionVariables,
+            GlobalContext global) {
+        super(collectionPatterns, collectionFunctions, collectionVariables, global);
         this.elements = elements;
     }
 
-    public static Term concatenate(Term... sets) {
-        Builder builder = new Builder();
+    public static Term concatenate(GlobalContext global, Term... sets) {
+        Builder builder = new Builder(global);
         builder.concatenate(sets);
         return builder.build();
     }
@@ -104,10 +98,10 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
     @Override
     protected int computeHash() {
         int hashCode = 1;
-        hashCode = hashCode * Utils.HASH_PRIME + elements.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + collectionPatterns.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + collectionFunctions.hashCode();
-        hashCode = hashCode * Utils.HASH_PRIME + collectionVariables.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + elements.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + collectionPatterns.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + collectionFunctions.hashCode();
+        hashCode = hashCode * Constants.HASH_PRIME + collectionVariables.hashCode();
         return hashCode;
     }
 
@@ -121,16 +115,6 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
             }
         }
         return false;
-    }
-
-    @Override
-    public void accept(Unifier unifier, Term pattern) {
-        unifier.unify(this, pattern);
-    }
-
-    @Override
-    public void accept(Matcher matcher, Term pattern) {
-        matcher.match(this, pattern);
     }
 
     @Override
@@ -161,20 +145,19 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
     }
 
     @Override
-    protected List<Term> getKComponents(TermContext context) {
-        DataStructureSort sort = context.definition().context().dataStructureSortOf(
-                sort().toFrontEnd());
+    public List<Term> getKComponents() {
+        DataStructureSort sort = global.getDefinition().dataStructureSortOf(sort());
 
         ArrayList<Term> components = Lists.newArrayList();
         elements.stream().forEach(element ->
                 components.add(KItem.of(
-                        KLabelConstant.of(sort.elementLabel(), context.definition().context()),
+                        KLabelConstant.of(sort.elementLabel(), global.getDefinition()),
                         KList.singleton(element),
-                        context, element.getSource(), element.getLocation())));
+                        global, element.getSource(), element.getLocation())));
 
         for (Term term : baseTerms()) {
             if (term instanceof BuiltinSet) {
-                components.addAll(((BuiltinSet) term).getKComponents(context));
+                components.addAll(((BuiltinSet) term).getKComponents());
             } else {
                 components.add(term);
             }
@@ -183,16 +166,21 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
         return components;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(GlobalContext global) {
+        return new Builder(global);
     }
 
     public static class Builder {
 
-        private Set<Term> elements = new HashSet<>();
-        private ImmutableMultiset.Builder<KItem> patternsBuilder = new ImmutableMultiset.Builder<>();
-        private ImmutableMultiset.Builder<Term> functionsBuilder = new ImmutableMultiset.Builder<>();
-        private ImmutableMultiset.Builder<Variable> variablesBuilder = new ImmutableMultiset.Builder<>();
+        private final Set<Term> elements = new HashSet<>();
+        private final ImmutableMultiset.Builder<KItem> patternsBuilder = new ImmutableMultiset.Builder<>();
+        private final ImmutableMultiset.Builder<Term> functionsBuilder = new ImmutableMultiset.Builder<>();
+        private final ImmutableMultiset.Builder<Variable> variablesBuilder = new ImmutableMultiset.Builder<>();
+        private final GlobalContext global;
+
+        public Builder(GlobalContext global) {
+            this.global = global;
+        }
 
         public boolean add(Term element) {
             return elements.add(element);
@@ -213,7 +201,7 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
         public void concatenate(Term... terms) {
             for (Term term : terms) {
                 if (!term.sort().equals(Sort.SET)) {
-                    throw KExceptionManager.criticalError("unexpected sort "
+                    throw KEMException.criticalError("unexpected sort "
                             + term.sort() + " of concatenated term " + term
                             + "; expected " + Sort.SET);
                 }
@@ -231,7 +219,7 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
                 } else if (term instanceof Variable) {
                     variablesBuilder.add((Variable) term);
                 } else {
-                    throw KExceptionManager.criticalError("unexpected concatenated term" + term);
+                    throw KEMException.criticalError("unexpected concatenated term" + term);
                 }
             }
         }
@@ -241,7 +229,8 @@ public class BuiltinSet extends AssociativeCommutativeCollection {
                     ImmutableSet.copyOf(elements),
                     patternsBuilder.build(),
                     functionsBuilder.build(),
-                    variablesBuilder.build());
+                    variablesBuilder.build(),
+                    global);
             return builtinSet.baseTerms().size() == 1 && builtinSet.concreteSize() == 0 ?
                     builtinSet.baseTerms().iterator().next() :
                     builtinSet;

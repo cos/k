@@ -2,10 +2,8 @@
 package org.kframework.backend.java.util;
 
 import org.kframework.backend.java.kil.*;
-import org.kframework.kil.FileSource;
-import org.kframework.kil.Location;
-import org.kframework.kil.Source;
-import org.kframework.utils.errorsystem.KExceptionManager;
+import org.kframework.attributes.Source;
+import org.kframework.utils.errorsystem.KEMException;
 
 import java.io.File;
 import java.io.IOException;
@@ -61,12 +59,12 @@ public class Coverage {
         }
     }
 
-    private static void print(File file, String string) {
+    private synchronized static void print(File file, String string) {
         if (file != null && string != null) {
             try {
                 writeStringToFile(file, string + "\n", true);
             } catch (IOException e) {
-                throw KExceptionManager.internalError("Could not write to " + file, e);
+                throw KEMException.internalError("Could not write to " + file, e);
             }
         }
     }
@@ -83,31 +81,15 @@ public class Coverage {
         }
         if (t instanceof KItem) {
             Source source = t.getSource();
-            if (source instanceof FileSource) {
-                s = toString((FileSource) source) + ":" + toString(t.getLocation());
-            }
+            s = source.toString() + ":" + t.getLocation().toString();
         }
         return s;
     }
 
     private static String getSourceLocation(Rule rule) {
-        String s = null; // Return null, if location information is not available.
+        String s; // Return null, if location information is not available.
         Source source = rule.getSource();
-        if (source instanceof FileSource) {
-            s = toString((FileSource) source) + ":" + toString(rule.getLocation());
-        }
+        s = source.toString() + ":" + rule.getLocation().toString();
         return s;
     }
-
-    // Customized toString method for FileSource.
-    private static String toString(FileSource source) {
-        return source.getFile().getAbsolutePath();
-    }
-
-    // Customized toString method for Location.
-    private static String toString(Location location) {
-        return  location.lineStart + ":" + location.columnStart
-        + ":" + location.lineEnd   + ":" + location.columnEnd;
-    }
-
 }
