@@ -11,9 +11,7 @@
   <modules>
     <module>kore</module>
     <module>kernel</module>
-    <module>k-distribution</module>
     <module>java-backend</module>
-    <module>coq-backend</module>
     <module>tiny</module>
     <module>API</module>
   </modules>
