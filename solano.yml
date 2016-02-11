@@ -1,0 +1,5 @@
+java:
+  java_version: java-8-openjdk
+  maven_version: '3.3.3'
+tests:
+  - mvn verify
